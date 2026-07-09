@@ -1,0 +1,55 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  background-color: #F4F5F7;
+  color: #171A21;
+}
+
+/* Soft, low-elevation shadow used on all card surfaces — one consistent
+   shadow depth instead of borders doing all the separation work. */
+.card-shadow {
+  box-shadow: 0 1px 2px rgba(20, 23, 28, 0.04), 0 8px 24px -12px rgba(20, 23, 28, 0.10);
+}
+
+/* Ticker strip animation — the ticker tape is the signature element */
+@keyframes ticker-scroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.ticker-track {
+  animation: ticker-scroll 40s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ticker-track {
+    animation: none;
+  }
+}
+
+/* Manrope reads correctly bold-by-default for headings, matching the
+   confident, high-contrast headline weight of the reference dashboard. */
+.font-display {
+  font-weight: 700;
+}
+
+.mono-num {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #D6DAE2;
+  border-radius: 4px;
+}

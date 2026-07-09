@@ -1,0 +1,2 @@
+nombre,codigo,isin,moneda,cantidad,valor_nominal,precio_compra,precio_actual,cupon,proximo_pago_interes,proximo_vencimiento,fecha_compra,corredor
+Bono Uruguay 2031,URU31,UYNU10120310,USD,10000,100,98.5,101.2,4.5,2026-09-15,2031-05-15,2023-02-10,Corredor XYZ
