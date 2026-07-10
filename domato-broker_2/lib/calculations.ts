@@ -12,15 +12,44 @@ export function computePortfolio(bonds: Bond[]): BondComputed[] {
   return bonds.map(computeBond);
 }
 
-export function portfolioTotals(bonds: BondComputed[]) {
-  const valorTotal = bonds.reduce((sum, b) => sum + b.valor_mercado, 0);
-  const costoTotal = bonds.reduce(
-    (sum, b) => sum + (b.precio_compra / 100) * b.valor_nominal * b.cantidad,
-    0
-  );
-  const gananciaTotal = valorTotal - costoTotal;
-  const rentabilidadTotal = costoTotal !== 0 ? (gananciaTotal / costoTotal) * 100 : 0;
-  return { valorTotal, costoTotal, gananciaTotal, rentabilidadTotal };
+// Totales agrupados por moneda: antes se sumaba todo junto (UYU + USD + UI
+// en un solo número), lo cual no tiene sentido financiero. Ahora se arma un
+// objeto con un total independiente por cada moneda presente en la cartera.
+export type TotalesPorMoneda = Record
+  string,
+  {
+    valorTotal: number;
+    costoTotal: number;
+    gananciaTotal: number;
+    rentabilidadTotal: number;
+  }
+>;
+
+export function portfolioTotals(bonds: BondComputed[]): TotalesPorMoneda {
+  const porMoneda: TotalesPorMoneda = {};
+
+  for (const b of bonds) {
+    const moneda = b.moneda ?? "SIN_MONEDA";
+    if (!porMoneda[moneda]) {
+      porMoneda[moneda] = {
+        valorTotal: 0,
+        costoTotal: 0,
+        gananciaTotal: 0,
+        rentabilidadTotal: 0,
+      };
+    }
+    const costo = (b.precio_compra / 100) * b.valor_nominal * b.cantidad;
+    porMoneda[moneda].valorTotal += b.valor_mercado;
+    porMoneda[moneda].costoTotal += costo;
+  }
+
+  for (const moneda of Object.keys(porMoneda)) {
+    const t = porMoneda[moneda];
+    t.gananciaTotal = t.valorTotal - t.costoTotal;
+    t.rentabilidadTotal = t.costoTotal !== 0 ? (t.gananciaTotal / t.costoTotal) * 100 : 0;
+  }
+
+  return porMoneda;
 }
 
 export function formatMoney(value: number, currency = "USD") {
