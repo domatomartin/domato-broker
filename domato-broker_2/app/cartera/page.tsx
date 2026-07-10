@@ -60,7 +60,7 @@ export default function CarteraPage() {
       )}
 
       <Panel title="Detalle de cartera">
-        <PortfolioTable bonds={computed} />
+        <PortfolioTable bonds={computed} onChanged={load} />
       </Panel>
     </div>
   );
