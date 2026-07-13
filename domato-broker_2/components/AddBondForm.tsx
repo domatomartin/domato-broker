@@ -3,15 +3,20 @@
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 
-const fields: { name: string; label: string; type: string; required?: boolean }[] = [
+type FieldDef =
+  | { name: string; label: string; type: "text" | "number" | "date"; required?: boolean }
+  | { name: string; label: string; type: "select"; options: string[]; required?: boolean };
+
+const fields: FieldDef[] = [
   { name: "nombre", label: "Nombre del bono", type: "text", required: true },
   { name: "codigo", label: "Código", type: "text" },
   { name: "isin", label: "ISIN", type: "text" },
-  { name: "moneda", label: "Moneda (USD/UYU/UI)", type: "text", required: true },
+  { name: "moneda", label: "Moneda", type: "select", options: ["USD", "UYU", "UI", "ARS", "EUR"], required: true },
+  { name: "cuenta", label: "Cuenta", type: "select", options: ["2191", "2192"] },
   { name: "cantidad", label: "Cantidad", type: "number", required: true },
   { name: "valor_nominal", label: "Valor nominal", type: "number", required: true },
-  { name: "precio_compra", label: "Precio de compra", type: "number", required: true },
-  { name: "precio_actual", label: "Precio actual", type: "number", required: true },
+  { name: "precio_compra", label: "Precio de compra (%)", type: "number", required: true },
+  { name: "precio_actual", label: "Precio actual (%)", type: "number", required: true },
   { name: "cupon", label: "Cupón anual (%)", type: "number" },
   { name: "proximo_pago_interes", label: "Próximo pago de interés", type: "date" },
   { name: "proximo_vencimiento", label: "Próximo vencimiento", type: "date" },
@@ -20,7 +25,10 @@ const fields: { name: string; label: string; type: string; required?: boolean }[
 ];
 
 export default function AddBondForm({ onAdded }: { onAdded?: () => void }) {
-  const [values, setValues] = useState<Record<string, string>>({});
+  const [values, setValues] = useState<Record<string, string>>({
+    moneda: "USD",
+    cuenta: "2191",
+  });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -34,6 +42,7 @@ export default function AddBondForm({ onAdded }: { onAdded?: () => void }) {
       codigo: values.codigo || null,
       isin: values.isin || null,
       moneda: values.moneda || "USD",
+      cuenta: values.cuenta || null,
       cantidad: Number(values.cantidad || 0),
       valor_nominal: Number(values.valor_nominal || 0),
       precio_compra: Number(values.precio_compra || 0),
@@ -54,7 +63,7 @@ export default function AddBondForm({ onAdded }: { onAdded?: () => void }) {
       return;
     }
 
-    setValues({});
+    setValues({ moneda: "USD", cuenta: "2191" });
     onAdded?.();
   }
 
@@ -63,15 +72,27 @@ export default function AddBondForm({ onAdded }: { onAdded?: () => void }) {
       {fields.map((f) => (
         <label key={f.name} className="flex flex-col gap-1 text-xs text-muted">
           {f.label}
-          <input
-            type={f.type}
-            required={f.required}
-            value={values[f.name] ?? ""}
-            onChange={(e) =>
-              setValues((v) => ({ ...v, [f.name]: e.target.value }))
-            }
-            className="rounded border border-ink-border bg-ink px-2.5 py-1.5 text-sm text-paper focus:outline-none focus:ring-2 focus:ring-gold"
-          />
+          {f.type === "select" ? (
+            <select
+              required={f.required}
+              value={values[f.name] ?? ""}
+              onChange={(e) => setValues((v) => ({ ...v, [f.name]: e.target.value }))}
+              className="rounded border border-ink-border bg-ink px-2.5 py-1.5 text-sm text-paper focus:outline-none focus:ring-2 focus:ring-gold"
+            >
+              <option value="">— seleccionar —</option>
+              {f.options.map((o) => (
+                <option key={o} value={o}>{o}</option>
+              ))}
+            </select>
+          ) : (
+            <input
+              type={f.type}
+              required={f.required}
+              value={values[f.name] ?? ""}
+              onChange={(e) => setValues((v) => ({ ...v, [f.name]: e.target.value }))}
+              className="rounded border border-ink-border bg-ink px-2.5 py-1.5 text-sm text-paper focus:outline-none focus:ring-2 focus:ring-gold"
+            />
+          )}
         </label>
       ))}
       <div className="col-span-full flex items-center gap-3 pt-2">
@@ -86,4 +107,4 @@ export default function AddBondForm({ onAdded }: { onAdded?: () => void }) {
       </div>
     </form>
   );
-}
+    }
