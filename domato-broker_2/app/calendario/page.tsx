@@ -18,12 +18,21 @@ type CalendarEvent = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+/** Extrae la tasa de cupón del nombre si el campo cupon está vacío.
+ *  Ejemplos: "Glob_ROU 7,875% 2033" → 7.875  "Arg29 U$S 1,00% 2029" → 1.0 */
+function parseCuponFromNombre(nombre: string): number | null {
+  const m = nombre.match(/(\d+)[,\.](\d+)\s*%/);
+  if (m) return parseFloat(m[0].replace(",", ".").replace("%", "").trim());
+  return null;
+}
+
 function buildEvents(bonds: Bond[]): CalendarEvent[] {
   const events: CalendarEvent[] = [];
   bonds.forEach((b) => {
+    const cuponRate = b.cupon ?? parseCuponFromNombre(b.nombre);
     const importeCupon =
-      b.cupon != null
-        ? (b.cupon / 100) * (b.valor_nominal ?? 0) * (b.cantidad ?? 1)
+      cuponRate != null
+        ? (cuponRate / 100) * (b.valor_nominal ?? 0) * (b.cantidad ?? 1)
         : null;
     const importeVenc =
       b.valor_nominal != null && b.cantidad != null
@@ -167,10 +176,12 @@ function DayModal({
                   )}
                 </div>
               </div>
-              {e.importe != null && (
+              {e.importe != null ? (
                 <p className="text-sm font-semibold text-paper whitespace-nowrap">
                   {formatMoney(e.importe, e.bond.moneda)}
                 </p>
+              ) : (
+                <p className="text-xs text-muted whitespace-nowrap">sin importe</p>
               )}
             </div>
           ))}
@@ -194,15 +205,7 @@ function DayModal({
 
 // ─── Weekly Strip ──────────────────────────────────────────────────────────────
 
-function WeeklyStrip({
-  events,
-  year,
-  month,
-}: {
-  events: CalendarEvent[];
-  year: number;
-  month: number;
-}) {
+function WeeklyStrip({ events, year, month }: { events: CalendarEvent[]; year: number; month: number }) {
   const byWeek = useMemo(() => {
     const map: Record<string, Record<string, number>> = {};
     events.forEach((e) => {
@@ -235,7 +238,9 @@ function WeeklyStrip({
           </div>
         ))}
       </div>
-      <p className="text-[11px] text-muted mt-3">* Importes estimados: tasa cupón × valor nominal × cantidad.</p>
+      <p className="text-[11px] text-muted mt-3">
+        * Importes estimados: tasa cupón × valor nominal × cantidad. Tasa obtenida del campo <code>cupon</code> o del nombre del bono.
+      </p>
     </Panel>
   );
 }
