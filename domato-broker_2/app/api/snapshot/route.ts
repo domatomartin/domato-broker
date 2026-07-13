@@ -33,12 +33,15 @@ export async function GET(request: Request) {
   const computed = computePortfolio((bonds as Bond[]) ?? []);
   const totals = portfolioTotals(computed);
 
+  // portfolioTotals devuelve un objeto por moneda — sumamos USD como referencia
+  const valorTotalUsd = totals["USD"]?.valorTotal ?? 0;
+
   const { error: insertError } = await supabaseAdmin
     .from("patrimonio_snapshots")
     .upsert(
       {
         fecha: new Date().toISOString().slice(0, 10),
-        valor_total: totals.valorTotal,
+        valor_total: valorTotalUsd,
         efectivo_usd: 0,
         efectivo_uyu: 0,
       },
@@ -49,5 +52,5 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: insertError.message }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true, valor_total: totals.valorTotal });
-}
+  return NextResponse.json({ ok: true, valor_total: valorTotalUsd, por_moneda: totals });
+      }
