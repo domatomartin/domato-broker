@@ -3,11 +3,12 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { Bond } from "@/lib/types";
-import { computePortfolio } from "@/lib/calculations";
+import { computePortfolio, portfolioTotals, formatMoney } from "@/lib/calculations";
 import { Panel } from "@/components/Card";
 import PortfolioTable from "@/components/PortfolioTable";
 import AddBondForm from "@/components/AddBondForm";
 import CsvImport from "@/components/CsvImport";
+import clsx from "clsx";
 
 type CuentaFiltro = "todas" | "2191" | "2192";
 
@@ -16,6 +17,15 @@ const CUENTAS: { value: CuentaFiltro; label: string }[] = [
   { value: "2191", label: "Cta. 2191 — Nelson" },
   { value: "2192", label: "Cta. 2192 — Conjunta" },
 ];
+
+// Formatea valores para monedas no-ISO (UI) y estándar
+function formatValorResumen(value: number, moneda: string) {
+  const isosValidos = ["USD", "UYU", "ARS", "EUR", "BRL"];
+  if (!isosValidos.includes(moneda)) {
+    return `${value.toLocaleString("es-UY", { maximumFractionDigits: 0 })} ${moneda}`;
+  }
+  return formatMoney(value, moneda);
+}
 
 export default function CarteraPage() {
   const [bonds, setBonds] = useState<Bond[]>([]);
@@ -27,7 +37,7 @@ export default function CarteraPage() {
       .from("bonds")
       .select("*")
       .eq("estado", "activo")
-      .order("proximo_vencimiento", { ascending: true });
+      .order("moneda", { ascending: true });
     setBonds((data as Bond[]) ?? []);
   }
 
@@ -41,6 +51,14 @@ export default function CarteraPage() {
       : bonds.filter((b) => b.cuenta === cuentaFiltro);
 
   const computed = computePortfolio(bondsFiltrados);
+  const totales = portfolioTotals(computed);
+
+  // Orden de monedas: USD primero, luego UYU, UI, ARS, resto
+  const ordenMonedas = ["USD", "UYU", "UI", "ARS"];
+  const monedasOrdenadas = [
+    ...ordenMonedas.filter((m) => totales[m]),
+    ...Object.keys(totales).filter((m) => !ordenMonedas.includes(m)),
+  ];
 
   return (
     <div className="p-6 md:p-8 flex flex-col gap-6">
@@ -49,8 +67,7 @@ export default function CarteraPage() {
         <div>
           <h1 className="font-display text-3xl text-paper">Cartera</h1>
           <p className="text-sm text-muted mt-1">
-            {bondsFiltrados.length} bono{bondsFiltrados.length !== 1 ? "s" : ""} activo
-            {bondsFiltrados.length !== 1 ? "s" : ""}
+            {bondsFiltrados.length} activo{bondsFiltrados.length !== 1 ? "s" : ""}
             {cuentaFiltro !== "todas" && ` · cuenta ${cuentaFiltro}`}
           </p>
         </div>
@@ -60,7 +77,7 @@ export default function CarteraPage() {
             onClick={() => setShowForm((s) => !s)}
             className="rounded bg-gold px-4 py-2 text-sm font-medium text-ink hover:bg-gold-bright transition-colors"
           >
-            {showForm ? "Cerrar formulario" : "+ Agregar bono"}
+            {showForm ? "Cerrar formulario" : "+ Agregar"}
           </button>
         </div>
       </div>
@@ -88,9 +105,54 @@ export default function CarteraPage() {
         ))}
       </div>
 
-      {/* Formulario nuevo bono */}
+      {/* Resumen por moneda */}
+      {monedasOrdenadas.length > 0 && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {monedasOrdenadas.map((moneda) => {
+            const t = totales[moneda];
+            return (
+              <div
+                key={moneda}
+                className="rounded-lg border border-ink-border bg-ink/30 p-4 flex flex-col gap-1"
+              >
+                <span className="text-xs font-semibold uppercase tracking-wide text-muted">
+                  {moneda}
+                  {moneda === "UI" && (
+                    <span className="ml-1 text-warn normal-case">aprox BCU</span>
+                  )}
+                </span>
+                <span className="text-xl font-mono font-semibold text-paper">
+                  {formatValorResumen(t.valorTotal, moneda)}
+                </span>
+                <div className="flex items-center gap-2 text-xs">
+                  <span
+                    className={clsx(
+                      "font-medium",
+                      t.gananciaTotal >= 0 ? "text-gain" : "text-loss"
+                    )}
+                  >
+                    {t.gananciaTotal >= 0 ? "+" : ""}
+                    {formatValorResumen(t.gananciaTotal, moneda)}
+                  </span>
+                  <span className="text-muted">
+                    {t.rentabilidadTotal >= 0 ? "+" : ""}
+                    {t.rentabilidadTotal.toFixed(2)}%
+                  </span>
+                </div>
+                {t.interesCorrido > 0 && (
+                  <span className="text-xs text-muted">
+                    Int. corrido: {formatValorResumen(t.interesCorrido, moneda)}
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Formulario nuevo activo */}
       {showForm && (
-        <Panel title="Nuevo bono">
+        <Panel title="Nuevo activo">
           <AddBondForm
             onAdded={() => {
               load();
@@ -101,7 +163,13 @@ export default function CarteraPage() {
       )}
 
       {/* Tabla */}
-      <Panel title={cuentaFiltro === "todas" ? "Detalle de cartera" : `Cuenta ${cuentaFiltro}`}>
+      <Panel
+        title={
+          cuentaFiltro === "todas"
+            ? "Detalle de cartera"
+            : `Cuenta ${cuentaFiltro}`
+        }
+      >
         <PortfolioTable bonds={computed} onChanged={load} />
       </Panel>
     </div>
