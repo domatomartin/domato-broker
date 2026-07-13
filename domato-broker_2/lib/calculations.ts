@@ -1,27 +1,68 @@
 import { Bond, BondComputed } from "./types";
 
+// ---------------------------------------------------------------------------
+// Interés corrido (accrued interest)
+// ---------------------------------------------------------------------------
+// El corredor BCE&M reporta el "precio sucio" = precio limpio + interés corrido.
+// Sin este ajuste, el valor de mercado calculado en la app no coincide con
+// el informe del corredor.
+//
+// Frecuencia detectada automáticamente:
+//   - Si el próximo pago está en más de 183 días -> cupón anual (365 días)
+//   - Si está en 183 días o menos              -> cupón semi-anual (182 días)
+//
+// Limitación: si no se cargó cupon o proximo_pago_interes, devuelve 0.
+// ---------------------------------------------------------------------------
+export function calcInteresCorrido(b: Bond): number {
+  if (!b.cupon || !b.proximo_pago_interes) return 0;
+
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  const proxPago = new Date(b.proximo_pago_interes);
+  proxPago.setHours(0, 0, 0, 0);
+
+  const diasHastaProxPago = Math.ceil(
+    (proxPago.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24)
+  );
+
+  if (diasHastaProxPago < 0) return 0;
+
+  const esAnual = diasHastaProxPago > 183;
+  const diasPeriodo = esAnual ? 365 : 182;
+  const diasTranscurridos = Math.max(0, diasPeriodo - diasHastaProxPago);
+  const tasaPorPeriodo = esAnual ? b.cupon / 100 : b.cupon / 100 / 2;
+
+  return tasaPorPeriodo * b.valor_nominal * b.cantidad * (diasTranscurridos / diasPeriodo);
+}
+
+// ---------------------------------------------------------------------------
+// Cálculo por bono
+// ---------------------------------------------------------------------------
 export function computeBond(b: Bond): BondComputed {
-  const valor_mercado = (b.precio_actual / 100) * b.valor_nominal * b.cantidad;
+  const valor_mercado_limpio = (b.precio_actual / 100) * b.valor_nominal * b.cantidad;
+  const interes_corrido = calcInteresCorrido(b);
+  const valor_mercado = valor_mercado_limpio + interes_corrido;
   const costo = (b.precio_compra / 100) * b.valor_nominal * b.cantidad;
   const ganancia = valor_mercado - costo;
   const rentabilidad_pct = costo !== 0 ? (ganancia / costo) * 100 : 0;
-  return { ...b, valor_mercado, ganancia, rentabilidad_pct };
+  return { ...b, valor_mercado_limpio, interes_corrido, valor_mercado, ganancia, rentabilidad_pct };
 }
 
 export function computePortfolio(bonds: Bond[]): BondComputed[] {
   return bonds.map(computeBond);
 }
 
-// Totales agrupados por moneda: antes se sumaba todo junto (UYU + USD + UI
-// en un solo número), lo cual no tiene sentido financiero. Ahora se arma un
-// objeto con un total independiente por cada moneda presente en la cartera.
-export type TotalesPorMoneda = Record
+// ---------------------------------------------------------------------------
+// Totales por moneda
+// ---------------------------------------------------------------------------
+export type TotalesPorMoneda = Record<
   string,
   {
     valorTotal: number;
     costoTotal: number;
     gananciaTotal: number;
     rentabilidadTotal: number;
+    interesCorrido: number;
   }
 >;
 
@@ -36,22 +77,28 @@ export function portfolioTotals(bonds: BondComputed[]): TotalesPorMoneda {
         costoTotal: 0,
         gananciaTotal: 0,
         rentabilidadTotal: 0,
+        interesCorrido: 0,
       };
     }
     const costo = (b.precio_compra / 100) * b.valor_nominal * b.cantidad;
     porMoneda[moneda].valorTotal += b.valor_mercado;
     porMoneda[moneda].costoTotal += costo;
+    porMoneda[moneda].interesCorrido += b.interes_corrido;
   }
 
   for (const moneda of Object.keys(porMoneda)) {
     const t = porMoneda[moneda];
     t.gananciaTotal = t.valorTotal - t.costoTotal;
-    t.rentabilidadTotal = t.costoTotal !== 0 ? (t.gananciaTotal / t.costoTotal) * 100 : 0;
+    t.rentabilidadTotal =
+      t.costoTotal !== 0 ? (t.gananciaTotal / t.costoTotal) * 100 : 0;
   }
 
   return porMoneda;
 }
 
+// ---------------------------------------------------------------------------
+// Helpers de formato
+// ---------------------------------------------------------------------------
 export function formatMoney(value: number, currency = "USD") {
   return new Intl.NumberFormat("es-UY", {
     style: "currency",
@@ -62,7 +109,7 @@ export function formatMoney(value: number, currency = "USD") {
 
 export function formatPct(value: number, decimals = 2) {
   const sign = value > 0 ? "+" : "";
-  return `${sign}${value.toFixed(decimals)}%`;
+  return sign + value.toFixed(decimals) + "%";
 }
 
 export function daysUntil(dateStr: string | null): number | null {
