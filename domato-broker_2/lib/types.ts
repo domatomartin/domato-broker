@@ -3,25 +3,28 @@ export type Bond = {
   nombre: string;
   codigo: string | null;
   isin: string | null;
-  moneda: "USD" | "UYU" | "UI" | "EUR" | string;
+  moneda: "USD" | "UYU" | "UI" | "EUR" | "ARS" | string;
   cantidad: number;
   valor_nominal: number;
   precio_compra: number;
   precio_actual: number;
-  cupon: number | null; // annual coupon rate, %
-  proximo_pago_interes: string | null; // ISO date
-  proximo_vencimiento: string | null; // ISO date
-  fecha_compra: string | null; // ISO date
+  cupon: number | null;
+  proximo_pago_interes: string | null;
+  proximo_vencimiento: string | null;
+  fecha_compra: string | null;
   corredor: string | null;
-  estado: "activo" | "vencido" | "vendido";
-  tir: number | null; // %
-  duration: number | null; // years
+  cuenta: string | null;
+  estado: "activo" | "vencido" | "vendido" | "inactivo";
+  tir: number | null;
+  duration: number | null;
   duration_modificada: number | null;
   convexidad: number | null;
   created_at?: string;
 };
 
 export type BondComputed = Bond & {
+  valor_mercado_limpio: number;
+  interes_corrido: number;
   valor_mercado: number;
   ganancia: number;
   rentabilidad_pct: number;
@@ -29,7 +32,7 @@ export type BondComputed = Bond & {
 
 export type PatrimonioSnapshot = {
   id?: string;
-  fecha: string; // ISO date
+  fecha: string;
   valor_total: number;
   efectivo_usd: number;
   efectivo_uyu: number;
@@ -48,7 +51,7 @@ export type Movimiento = {
 export type InvestorProfile = {
   id?: number;
   objetivos_financieros: string | null;
-  rentabilidad_objetivo: number | null; // % anual
+  rentabilidad_objetivo: number | null;
   riesgo_aceptado: "conservador" | "moderado" | "agresivo" | string;
   horizonte_inversion: string | null;
   distribucion_objetivo: string | null;
@@ -69,4 +72,5 @@ export const CSV_BOND_COLUMNS = [
   "proximo_vencimiento",
   "fecha_compra",
   "corredor",
+  "cuenta",
 ] as const;
