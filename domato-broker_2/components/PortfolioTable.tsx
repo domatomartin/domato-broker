@@ -5,13 +5,10 @@ import { formatMoney, formatPct, daysUntil, portfolioTotals } from "@/lib/calcul
 import { supabase } from "@/lib/supabase";
 import clsx from "clsx";
 
-// Monedas que Intl.NumberFormat no reconoce (no son códigos ISO 4217),
-// como "UI" (Unidades Indexadas). Para esas mostramos el número simple
-// en vez de intentar formatear como moneda (eso rompía antes).
 function formatValor(value: number, moneda: string) {
   const codigosValidos = ["USD", "UYU", "ARS", "EUR", "BRL"];
   if (!codigosValidos.includes(moneda)) {
-    return `${value.toLocaleString("es-UY", { maximumFractionDigits: 0 })} ${moneda}`;
+    return value.toLocaleString("es-UY", { maximumFractionDigits: 0 }) + " " + moneda;
   }
   return formatMoney(value, moneda);
 }
@@ -26,20 +23,12 @@ export default function PortfolioTable({
   const [borrandoId, setBorrandoId] = useState<string | null>(null);
 
   async function eliminarBono(id: string, nombre: string) {
-    const confirmar = window.confirm(`¿Eliminar "${nombre}" de la cartera?`);
+    const confirmar = window.confirm("Eliminar " + nombre + " de la cartera?");
     if (!confirmar) return;
-
     setBorrandoId(id);
-    const { error } = await supabase
-      .from("bonds")
-      .update({ estado: "inactivo" })
-      .eq("id", id);
+    const { error } = await supabase.from("bonds").update({ estado: "inactivo" }).eq("id", id);
     setBorrandoId(null);
-
-    if (error) {
-      alert("No se pudo eliminar: " + error.message);
-      return;
-    }
+    if (error) { alert("No se pudo eliminar: " + error.message); return; }
     onChanged?.();
   }
 
@@ -59,11 +48,14 @@ export default function PortfolioTable({
         <thead>
           <tr className="text-left text-[11px] uppercase tracking-wide text-muted border-b border-ink-border">
             <th className="py-2 pr-4">Bono</th>
+            <th className="py-2 pr-4">Cuenta</th>
             <th className="py-2 pr-4">ISIN</th>
             <th className="py-2 pr-4">Moneda</th>
             <th className="py-2 pr-4 text-right">Cantidad</th>
             <th className="py-2 pr-4 text-right">Precio actual</th>
-            <th className="py-2 pr-4 text-right">Valor de mercado</th>
+            <th className="py-2 pr-4 text-right">V. limpio</th>
+            <th className="py-2 pr-4 text-right">Int. corrido</th>
+            <th className="py-2 pr-4 text-right">V. mercado</th>
             <th className="py-2 pr-4 text-right">G/P</th>
             <th className="py-2 pr-4 text-right">Rent. %</th>
             <th className="py-2 pr-4 text-right">Próx. vencimiento</th>
@@ -79,33 +71,20 @@ export default function PortfolioTable({
                   <div className="text-paper">{b.nombre}</div>
                   <div className="text-xs text-muted">{b.codigo}</div>
                 </td>
-                <td className="py-2.5 pr-4 font-mono text-xs text-muted">
-                  {b.isin ?? "—"}
-                </td>
+                <td className="py-2.5 pr-4 text-xs text-muted">{b.cuenta ?? "—"}</td>
+                <td className="py-2.5 pr-4 font-mono text-xs text-muted">{b.isin ?? "—"}</td>
                 <td className="py-2.5 pr-4">{b.moneda}</td>
-                <td className="py-2.5 pr-4 text-right font-mono mono-num">
-                  {b.cantidad.toLocaleString("es-UY")}
+                <td className="py-2.5 pr-4 text-right font-mono mono-num">{b.cantidad.toLocaleString("es-UY")}</td>
+                <td className="py-2.5 pr-4 text-right font-mono mono-num">{b.precio_actual.toFixed(2)}</td>
+                <td className="py-2.5 pr-4 text-right font-mono mono-num text-muted">{formatValor(b.valor_mercado_limpio, b.moneda)}</td>
+                <td className="py-2.5 pr-4 text-right font-mono mono-num text-muted">
+                  {b.interes_corrido > 0 ? formatValor(b.interes_corrido, b.moneda) : "—"}
                 </td>
-                <td className="py-2.5 pr-4 text-right font-mono mono-num">
-                  {b.precio_actual.toFixed(2)}
-                </td>
-                <td className="py-2.5 pr-4 text-right font-mono mono-num">
-                  {formatValor(b.valor_mercado, b.moneda)}
-                </td>
-                <td
-                  className={clsx(
-                    "py-2.5 pr-4 text-right font-mono mono-num",
-                    b.ganancia >= 0 ? "text-gain" : "text-loss"
-                  )}
-                >
+                <td className="py-2.5 pr-4 text-right font-mono mono-num font-medium">{formatValor(b.valor_mercado, b.moneda)}</td>
+                <td className={clsx("py-2.5 pr-4 text-right font-mono mono-num", b.ganancia >= 0 ? "text-gain" : "text-loss")}>
                   {formatValor(b.ganancia, b.moneda)}
                 </td>
-                <td
-                  className={clsx(
-                    "py-2.5 pr-4 text-right font-mono mono-num",
-                    b.rentabilidad_pct >= 0 ? "text-gain" : "text-loss"
-                  )}
-                >
+                <td className={clsx("py-2.5 pr-4 text-right font-mono mono-num", b.rentabilidad_pct >= 0 ? "text-gain" : "text-loss")}>
                   {formatPct(b.rentabilidad_pct)}
                 </td>
                 <td className="py-2.5 pr-4 text-right text-xs">
@@ -129,34 +108,29 @@ export default function PortfolioTable({
         </tbody>
         <tfoot>
           {Object.entries(totalesPorMoneda).map(([moneda, t]) => (
-            <tr key={moneda} className="border-t border-ink-border font-medium">
-              <td className="py-2.5 pr-4 text-paper" colSpan={5}>
-                Total en {moneda}
-              </td>
-              <td className="py-2.5 pr-4 text-right font-mono mono-num">
-                {formatValor(t.valorTotal, moneda)}
-              </td>
-              <td
-                className={clsx(
-                  "py-2.5 pr-4 text-right font-mono mono-num",
-                  t.gananciaTotal >= 0 ? "text-gain" : "text-loss"
+            <tr key={moneda} className="border-t-2 border-ink-border font-semibold bg-ink/20">
+              <td className="py-2.5 pr-4 text-paper" colSpan={6}>
+                Total {moneda}
+                {moneda === "UI" && (
+                  <span className="ml-2 text-xs font-normal text-warn">(multiplicar por tipo BCU para obtener UYU)</span>
                 )}
-              >
+              </td>
+              <td className="py-2.5 pr-4" />
+              <td className="py-2.5 pr-4 text-right font-mono mono-num text-muted">
+                {t.interesCorrido > 0 ? formatValor(t.interesCorrido, moneda) : "—"}
+              </td>
+              <td className="py-2.5 pr-4 text-right font-mono mono-num">{formatValor(t.valorTotal, moneda)}</td>
+              <td className={clsx("py-2.5 pr-4 text-right font-mono mono-num", t.gananciaTotal >= 0 ? "text-gain" : "text-loss")}>
                 {formatValor(t.gananciaTotal, moneda)}
               </td>
-              <td
-                className={clsx(
-                  "py-2.5 pr-4 text-right font-mono mono-num",
-                  t.rentabilidadTotal >= 0 ? "text-gain" : "text-loss"
-                )}
-              >
+              <td className={clsx("py-2.5 pr-4 text-right font-mono mono-num", t.rentabilidadTotal >= 0 ? "text-gain" : "text-loss")}>
                 {formatPct(t.rentabilidadTotal)}
               </td>
-              <td colSpan={2}></td>
+              <td colSpan={2} />
             </tr>
           ))}
         </tfoot>
       </table>
     </div>
   );
-}
+      }
