@@ -16,9 +16,11 @@ function formatValor(value: number, moneda: string) {
 export default function PortfolioTable({
   bonds,
   onChanged,
+  onSelect,
 }: {
   bonds: BondComputed[];
   onChanged?: () => void;
+  onSelect?: (bond: BondComputed) => void;
 }) {
   const [borrandoId, setBorrandoId] = useState<string | null>(null);
 
@@ -66,7 +68,14 @@ export default function PortfolioTable({
           {bonds.map((b) => {
             const dias = daysUntil(b.proximo_vencimiento);
             return (
-              <tr key={b.id} className="border-b border-ink-border/50 hover:bg-ink/40">
+              <tr
+              key={b.id}
+              onClick={() => onSelect?.(b)}
+              className={clsx(
+                "border-b border-ink-border/50 transition-colors",
+                onSelect ? "cursor-pointer hover:bg-gold/5" : "hover:bg-ink/40"
+              )}
+            >
                 <td className="py-2.5 pr-4">
                   <div className="text-paper">{b.nombre}</div>
                   <div className="text-xs text-muted">{b.codigo}</div>
