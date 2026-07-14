@@ -10,11 +10,22 @@ import TickerStrip, { TickerItem } from "@/components/TickerStrip";
 import { computeBondAlerts, severityOrder } from "@/lib/alerts";
 import Link from "next/link";
 
+type Tasas = { UYU_per_USD: number; ARS_per_USD: number; UI_in_UYU: number; fetched_at: string };
+
+/** Convierte un valor en la moneda indicada a dólares usando las tasas */
+function toUSD(valor: number, moneda: string, tasas: Tasas): number {
+  if (moneda === "UYU") return valor / tasas.UYU_per_USD;
+  if (moneda === "UI") return (valor * tasas.UI_in_UYU) / tasas.UYU_per_USD;
+  if (moneda === "ARS") return valor / tasas.ARS_per_USD;
+  return valor; // USD u otras — sin conversión
+}
+
 export default function DashboardPage() {
   const [bonds, setBonds] = useState<Bond[]>([]);
   const [snapshots, setSnapshots] = useState<PatrimonioSnapshot[]>([]);
   const [ticker, setTicker] = useState<TickerItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [tasas, setTasas] = useState<Tasas | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -28,6 +39,11 @@ export default function DashboardPage() {
     }
     load();
 
+    fetch("/api/cotizaciones")
+      .then((r) => r.json())
+      .then((t: Tasas) => setTasas(t))
+      .catch(() => {});
+
     fetch("/api/indices")
       .then((r) => r.json())
       .then((data) => setTicker(data.items ?? []))
@@ -36,12 +52,20 @@ export default function DashboardPage() {
 
   const computed = computePortfolio(bonds);
   const totalsPerCurrency = portfolioTotals(computed);
-const _tv = Object.values(totalsPerCurrency);
-const valorTotal = _tv.reduce((s, t) => s + t.valorTotal, 0);
-const costoTotal = _tv.reduce((s, t) => s + t.costoTotal, 0);
-const gananciaTotal = valorTotal - costoTotal;
-const rentabilidadTotal = costoTotal > 0 ? (gananciaTotal / costoTotal) * 100 : 0;
-const totals = { valorTotal, costoTotal, gananciaTotal, rentabilidadTotal };
+
+  // Convertir cada moneda a USD antes de sumar
+  const valorTotalUSD = tasas
+    ? Object.entries(totalsPerCurrency).reduce((s, [m, t]) => s + toUSD(t.valorTotal, m, tasas), 0)
+    : null;
+  const costoTotalUSD = tasas
+    ? Object.entries(totalsPerCurrency).reduce((s, [m, t]) => s + toUSD(t.costoTotal, m, tasas), 0)
+    : null;
+  const gananciaTotalUSD =
+    valorTotalUSD !== null && costoTotalUSD !== null ? valorTotalUSD - costoTotalUSD : null;
+  const rentabilidadTotal =
+    costoTotalUSD && costoTotalUSD > 0 && gananciaTotalUSD !== null
+      ? (gananciaTotalUSD / costoTotalUSD) * 100
+      : 0;
 
   const last = snapshots[snapshots.length - 1];
   const prevDay = snapshots[snapshots.length - 2];
@@ -55,7 +79,10 @@ const totals = { valorTotal, costoTotal, gananciaTotal, rentabilidadTotal };
   const varDia = last && prevDay ? ((last.valor_total - prevDay.valor_total) / prevDay.valor_total) * 100 : 0;
   const varMes = last && prevMonth ? ((last.valor_total - prevMonth.valor_total) / prevMonth.valor_total) * 100 : 0;
   const varAnio = last && prevYear ? ((last.valor_total - prevYear.valor_total) / prevYear.valor_total) * 100 : 0;
-  const maxHistorico = snapshots.reduce((max, s) => Math.max(max, s.valor_total), totals.valorTotal);
+  const maxHistorico = snapshots.reduce(
+    (max, s) => Math.max(max, s.valor_total),
+    valorTotalUSD ?? 0
+  );
 
   return (
     <div className="flex flex-col">
@@ -71,8 +98,8 @@ const totals = { valorTotal, costoTotal, gananciaTotal, rentabilidadTotal };
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <StatCard
-            label="Valor total"
-            value={loading ? "…" : formatMoney(totals.valorTotal)}
+            label="Valor total (eq. USD)"
+            value={loading || valorTotalUSD === null ? "…" : formatMoney(valorTotalUSD, "USD")}
             tone="gold"
           />
           <StatCard
@@ -92,17 +119,17 @@ const totals = { valorTotal, costoTotal, gananciaTotal, rentabilidadTotal };
           />
           <StatCard
             label="Rentabilidad acumulada"
-            value={formatPct(totals.rentabilidadTotal)}
-            tone={totals.rentabilidadTotal >= 0 ? "gain" : "loss"}
+            value={formatPct(rentabilidadTotal)}
+            tone={rentabilidadTotal >= 0 ? "gain" : "loss"}
           />
           <StatCard
-            label="Resultado del día"
-            value={last && prevDay ? formatMoney(last.valor_total - prevDay.valor_total) : "—"}
+            label="Resultado del día (USD)"
+            value={last && prevDay ? formatMoney(last.valor_total - prevDay.valor_total, "USD") : "—"}
             tone={varDia >= 0 ? "gain" : "loss"}
           />
           <StatCard
-            label="Patrimonio máximo"
-            value={formatMoney(maxHistorico)}
+            label="Patrimonio máximo (USD)"
+            value={formatMoney(maxHistorico, "USD")}
           />
           <StatCard
             label="Bonos en cartera"
