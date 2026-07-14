@@ -1,8 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
+import Anthropic from "@anthropic-ai/sdk";
+import { NextRequest } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
+const client = new Anthropic();
 
 export async function POST(req: NextRequest) {
   const { message, history = [] } = await req.json();
@@ -38,60 +39,32 @@ export async function POST(req: NextRequest) {
     contextText || "No se pudo obtener el contexto de la cartera en este momento.",
   ].join("\n");
 
-  // 3. Call Anthropic with streaming
-  const upstream = await fetch(ANTHROPIC_URL, {
-    method: "POST",
-    headers: {
-      "x-api-key": process.env.ANTHROPIC_API_KEY!,
-      "anthropic-version": "2023-06-01",
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 2048,
-      stream: true,
-      system: systemPrompt,
-      messages: [...history, { role: "user", content: message }],
-    }),
+  // 3. Stream with @anthropic-ai/sdk
+  const stream = client.messages.stream({
+    model: "claude-haiku-4-5-20251001",
+    max_tokens: 2048,
+    system: systemPrompt,
+    messages: [
+      ...history,
+      { role: "user" as const, content: message },
+    ],
   });
 
-  if (!upstream.ok) {
-    const err = await upstream.text();
-    return NextResponse.json({ error: err }, { status: upstream.status });
-  }
-
-  // 4. Transform Anthropic SSE → plain text stream (text deltas only)
-  const decoder = new TextDecoder();
+  // 4. Extract text deltas → plain text stream (compatible with page.tsx reader)
   const encoder = new TextEncoder();
-  let buffer = "";
-
   const readable = new ReadableStream({
     async start(controller) {
-      const reader = upstream.body!.getReader();
       try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() ?? "";
-          for (const line of lines) {
-            if (!line.startsWith("data: ")) continue;
-            const data = line.slice(6).trim();
-            if (data === "[DONE]") continue;
-            try {
-              const evt = JSON.parse(data);
-              if (
-                evt.type === "content_block_delta" &&
-                evt.delta?.type === "text_delta"
-              ) {
-                controller.enqueue(encoder.encode(evt.delta.text));
-              }
-            } catch {
-              // ignore malformed SSE lines
-            }
+        for await (const chunk of stream) {
+          if (
+            chunk.type === "content_block_delta" &&
+            chunk.delta.type === "text_delta"
+          ) {
+            controller.enqueue(encoder.encode(chunk.delta.text));
           }
         }
+      } catch (err) {
+        console.error("[asesor/chat] stream error:", err);
       } finally {
         controller.close();
       }
