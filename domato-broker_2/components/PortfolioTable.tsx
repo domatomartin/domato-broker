@@ -25,21 +25,16 @@ export default function PortfolioTable({
   const [borrandoId, setBorrandoId] = useState<string | null>(null);
 
   async function eliminarBono(id: string, nombre: string) {
-    const confirmar = window.confirm("Eliminar " + nombre + " de la cartera?");
-    if (!confirmar) return;
+    if (!window.confirm("Eliminar " + nombre + "?")) return;
     setBorrandoId(id);
     const { error } = await supabase.from("bonds").update({ estado: "inactivo" }).eq("id", id);
     setBorrandoId(null);
-    if (error) { alert("No se pudo eliminar: " + error.message); return; }
+    if (error) { alert("Error: " + error.message); return; }
     onChanged?.();
   }
 
   if (bonds.length === 0) {
-    return (
-      <p className="text-sm text-muted py-8 text-center">
-        Todavía no cargaste ningún bono. Agregalo manualmente o importá un CSV.
-      </p>
-    );
+    return <p className="text-sm text-muted py-8 text-center">Sin bonos. Agregalos manualmente o importa un CSV.</p>;
   }
 
   const totalesPorMoneda = portfolioTotals(bonds);
@@ -50,14 +45,13 @@ export default function PortfolioTable({
         <thead>
           <tr className="text-left text-[11px] uppercase tracking-wide text-muted border-b border-ink-border">
             <th className="py-2 pr-4">Bono</th>
-            <th className="py-2 pr-4">Cuenta</th>
             <th className="py-2 pr-4">ISIN</th>
             <th className="py-2 pr-4">Moneda</th>
             <th className="py-2 pr-4 text-right">Cantidad</th>
             <th className="py-2 pr-4 text-right">Precio actual</th>
-            <th className="py-2 pr-4 text-right">V. limpio</th>
+            <th className="py-2 pr-4 text-right">V. Limpio</th>
             <th className="py-2 pr-4 text-right">Int. corrido</th>
-            <th className="py-2 pr-4 text-right">V. mercado</th>
+            <th className="py-2 pr-4 text-right">V. Mercado</th>
             <th className="py-2 pr-4 text-right">G/P</th>
             <th className="py-2 pr-4 text-right">Rent. %</th>
             <th className="py-2 pr-4 text-right">Próx. vencimiento</th>
@@ -69,27 +63,26 @@ export default function PortfolioTable({
             const dias = daysUntil(b.proximo_vencimiento);
             return (
               <tr
-              key={b.id}
-              onClick={() => onSelect?.(b)}
-              className={clsx(
-                "border-b border-ink-border/50 transition-colors",
-                onSelect ? "cursor-pointer hover:bg-gold/5" : "hover:bg-ink/40"
-              )}
-            >
+                key={b.id}
+                onClick={() => onSelect?.(b)}
+                className={clsx(
+                  "border-b border-ink-border/50 transition-colors",
+                  onSelect ? "cursor-pointer hover:bg-gold/5" : "hover:bg-ink/40"
+                )}
+              >
                 <td className="py-2.5 pr-4">
-                  <div className="text-paper">{b.nombre}</div>
+                  <div className="text-paper font-medium">{b.nombre}</div>
                   <div className="text-xs text-muted">{b.codigo}</div>
                 </td>
-                <td className="py-2.5 pr-4 text-xs text-muted">{b.cuenta ?? "—"}</td>
                 <td className="py-2.5 pr-4 font-mono text-xs text-muted">{b.isin ?? "—"}</td>
                 <td className="py-2.5 pr-4">{b.moneda}</td>
                 <td className="py-2.5 pr-4 text-right font-mono mono-num">{b.cantidad.toLocaleString("es-UY")}</td>
                 <td className="py-2.5 pr-4 text-right font-mono mono-num">{b.precio_actual.toFixed(2)}</td>
-                <td className="py-2.5 pr-4 text-right font-mono mono-num text-muted">{formatValor(b.valor_mercado_limpio, b.moneda)}</td>
+                <td className="py-2.5 pr-4 text-right font-mono mono-num">{formatValor((b.precio_actual / 100) * b.valor_nominal * b.cantidad, b.moneda)}</td>
                 <td className="py-2.5 pr-4 text-right font-mono mono-num text-muted">
-                  {b.interes_corrido > 0 ? formatValor(b.interes_corrido, b.moneda) : "—"}
+                  {b.cupon != null ? formatValor((b.cupon / 100) * b.valor_nominal * b.cantidad, b.moneda) : "—"}
                 </td>
-                <td className="py-2.5 pr-4 text-right font-mono mono-num font-medium">{formatValor(b.valor_mercado, b.moneda)}</td>
+                <td className="py-2.5 pr-4 text-right font-mono mono-num">{formatValor(b.valor_mercado, b.moneda)}</td>
                 <td className={clsx("py-2.5 pr-4 text-right font-mono mono-num", b.ganancia >= 0 ? "text-gain" : "text-loss")}>
                   {formatValor(b.ganancia, b.moneda)}
                 </td>
@@ -104,7 +97,7 @@ export default function PortfolioTable({
                 </td>
                 <td className="py-2.5 pr-4 text-right">
                   <button
-                    onClick={() => eliminarBono(b.id, b.nombre)}
+                    onClick={(e) => { e.stopPropagation(); eliminarBono(b.id, b.nombre); }}
                     disabled={borrandoId === b.id}
                     className="text-xs text-loss hover:underline disabled:opacity-50"
                   >
@@ -117,29 +110,19 @@ export default function PortfolioTable({
         </tbody>
         <tfoot>
           {Object.entries(totalesPorMoneda).map(([moneda, t]) => (
-            <tr key={moneda} className="border-t-2 border-ink-border font-semibold bg-ink/20">
-              <td className="py-2.5 pr-4 text-paper" colSpan={6}>
-                Total {moneda}
-                {moneda === "UI" && (
-                  <span className="ml-2 text-xs font-normal text-warn">(multiplicar por tipo BCU para obtener UYU)</span>
-                )}
-              </td>
-              <td className="py-2.5 pr-4" />
-              <td className="py-2.5 pr-4 text-right font-mono mono-num text-muted">
-                {t.interesCorrido > 0 ? formatValor(t.interesCorrido, moneda) : "—"}
-              </td>
-              <td className="py-2.5 pr-4 text-right font-mono mono-num">{formatValor(t.valorTotal, moneda)}</td>
+            <tr key={moneda} className="border-t border-ink-border font-medium">
+              <td className="py-2.5 pr-4 text-paper" colSpan={8}>Total {moneda}</td>
               <td className={clsx("py-2.5 pr-4 text-right font-mono mono-num", t.gananciaTotal >= 0 ? "text-gain" : "text-loss")}>
                 {formatValor(t.gananciaTotal, moneda)}
               </td>
               <td className={clsx("py-2.5 pr-4 text-right font-mono mono-num", t.rentabilidadTotal >= 0 ? "text-gain" : "text-loss")}>
                 {formatPct(t.rentabilidadTotal)}
               </td>
-              <td colSpan={2} />
+              <td colSpan={2}></td>
             </tr>
           ))}
         </tfoot>
       </table>
     </div>
   );
-      }
+}
