@@ -6,59 +6,46 @@ import { Bond } from "@/lib/types";
 import { Panel, Badge } from "@/components/Card";
 import clsx from "clsx";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Types ───────────────────────────────────────────────────────────────────
 
 type CalendarEvent = {
   date: Date;
   bond: Bond;
   tipo: "cupon" | "vencimiento";
-  label: string;
   importe: number | null;
 };
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
-/** Extrae la tasa de cupón del nombre si el campo cupon está vacío.
- *  Ejemplos: "Glob_ROU 7,875% 2033" → 7.875  "Arg29 U$S 1,00% 2029" → 1.0 */
-function parseCuponFromNombre(nombre: string): number | null {
-  const m = nombre.match(/(\d+)[,\.](\d+)\s*%/);
+function getCuponRate(b: Bond): number | null {
+  if (b.cupon != null) return b.cupon;
+  const m = b.nombre.match(/(\d+)[,.](\d+)\s*%/);
   if (m) return parseFloat(m[0].replace(",", ".").replace("%", "").trim());
   return null;
 }
 
 function buildEvents(bonds: Bond[]): CalendarEvent[] {
-  const events: CalendarEvent[] = [];
+  const evs: CalendarEvent[] = [];
   bonds.forEach((b) => {
-    const cuponRate = b.cupon ?? parseCuponFromNombre(b.nombre);
-    const importeCupon =
-      cuponRate != null
-        ? (cuponRate / 100) * (b.valor_nominal ?? 0) * (b.cantidad ?? 1)
-        : null;
-    const importeVenc =
-      b.valor_nominal != null && b.cantidad != null
-        ? b.valor_nominal * b.cantidad
-        : null;
-
     if (b.proximo_pago_interes) {
-      events.push({
-        date: new Date(b.proximo_pago_interes + "T12:00:00"),
+      const rate = getCuponRate(b);
+      evs.push({
+        date: new Date(b.proximo_pago_interes + "T00:00:00"),
         bond: b,
         tipo: "cupon",
-        label: b.nombre,
-        importe: importeCupon,
+        importe: rate != null ? (rate / 100) * b.valor_nominal * b.cantidad : null,
       });
     }
     if (b.proximo_vencimiento) {
-      events.push({
-        date: new Date(b.proximo_vencimiento + "T12:00:00"),
+      evs.push({
+        date: new Date(b.proximo_vencimiento + "T00:00:00"),
         bond: b,
         tipo: "vencimiento",
-        label: b.nombre,
-        importe: importeVenc,
+        importe: b.valor_nominal * b.cantidad,
       });
     }
   });
-  return events.sort((a, b) => a.date.getTime() - b.date.getTime());
+  return evs.sort((a, b) => a.date.getTime() - b.date.getTime());
 }
 
 function sameDay(a: Date, b: Date) {
@@ -69,131 +56,129 @@ function sameDay(a: Date, b: Date) {
   );
 }
 
-function formatMoney(amount: number, currency: string): string {
-  const sym: Record<string, string> = {
-    USD: "U$S", UYU: "$U", UI: "UI", UST: "U$T", ARS: "AR$", EUR: "€",
-  };
-  const s = sym[currency] ?? currency;
-  return `${s} ${amount.toLocaleString("es-UY", {
-    minimumFractionDigits: 0,
+function fmt(value: number, currency: string) {
+  const cur = ["USD", "UYU", "EUR", "ARS"].includes(currency) ? currency : "USD";
+  return new Intl.NumberFormat("es-UY", {
+    style: "currency",
+    currency: cur,
     maximumFractionDigits: 0,
-  })}`;
+  }).format(value);
 }
 
-function getWeekKey(date: Date): string {
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-  const day = d.getUTCDay() || 7;
-  d.setUTCDate(d.getUTCDate() + 4 - day);
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  const week = Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
-  return `${d.getUTCFullYear()}-W${week}`;
+function totalsByCurrency(evs: CalendarEvent[]) {
+  const acc: Record<string, number> = {};
+  evs.forEach((e) => {
+    if (e.importe != null) acc[e.bond.moneda] = (acc[e.bond.moneda] ?? 0) + e.importe;
+  });
+  return acc;
 }
 
-function weekLabel(key: string): string {
-  const [yearStr, weekStr] = key.split("-W");
-  const year = parseInt(yearStr);
-  const week = parseInt(weekStr);
-  const jan4 = new Date(year, 0, 4);
-  const startOfWeek = new Date(jan4.getTime() + (week - 1) * 7 * 86400000);
-  startOfWeek.setDate(startOfWeek.getDate() - ((startOfWeek.getDay() + 6) % 7));
-  const endOfWeek = new Date(startOfWeek.getTime() + 6 * 86400000);
-  const fmt = (d: Date) => `${d.getDate()}/${d.getMonth() + 1}`;
-  return `${fmt(startOfWeek)} – ${fmt(endOfWeek)}`;
-}
+// ─── Day Modal ────────────────────────────────────────────────────────────────
 
-const CURRENCY_DOT: Record<string, string> = {
-  USD: "bg-[#22c55e]", UYU: "bg-[#3b82f6]", UI: "bg-[#a855f7]",
-  UST: "bg-[#14b8a6]", ARS: "bg-[#f97316]", EUR: "bg-[#eab308]",
-};
+function DayModal({ day, events, onClose }: { day: Date; events: CalendarEvent[]; onClose: () => void }) {
+  const cupones = events.filter((e) => e.tipo === "cupon");
+  const vencimientos = events.filter((e) => e.tipo === "vencimiento");
+  const totals = totalsByCurrency(cupones);
 
-const CURRENCY_BADGE: Record<string, string> = {
-  USD: "bg-green-900/40 text-green-300 border border-green-700",
-  UYU: "bg-blue-900/40 text-blue-300 border border-blue-700",
-  UI:  "bg-purple-900/40 text-purple-300 border border-purple-700",
-  UST: "bg-teal-900/40 text-teal-300 border border-teal-700",
-  ARS: "bg-orange-900/40 text-orange-300 border border-orange-700",
-  EUR: "bg-yellow-900/40 text-yellow-300 border border-yellow-700",
-};
-
-const MESES = [
-  "Enero","Febrero","Marzo","Abril","Mayo","Junio",
-  "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre",
-];
-const DIAS = ["Lu","Ma","Mi","Ju","Vi","Sá","Do"];
-
-// ─── Day Detail Modal ──────────────────────────────────────────────────────────
-
-function DayModal({
-  date,
-  events,
-  onClose,
-}: {
-  date: Date;
-  events: CalendarEvent[];
-  onClose: () => void;
-}) {
-  const label = date.toLocaleDateString("es-UY", {
+  const dayLabel = day.toLocaleDateString("es-UY", {
     weekday: "long", day: "numeric", month: "long", year: "numeric",
   });
 
-  const totals = events.reduce<Record<string, number>>((acc, e) => {
-    if (e.importe != null) {
-      const cur = e.bond.moneda;
-      acc[cur] = (acc[cur] ?? 0) + e.importe;
-    }
-    return acc;
-  }, {});
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
-      <div className="bg-[#1a1a1a] border border-[#2e2e2e] rounded-xl shadow-2xl w-full max-w-md max-h-[80vh] flex flex-col">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#2e2e2e]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={onClose}>
+      <div
+        className="bg-ink border border-ink-border rounded-2xl w-full max-w-md max-h-[82vh] flex flex-col shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-ink-border shrink-0">
           <div>
-            <p className="text-xs text-muted uppercase tracking-wide">Cobros del día</p>
-            <h3 className="text-base font-semibold text-paper capitalize">{label}</h3>
+            <p className="text-xs text-muted capitalize">{dayLabel}</p>
+            <p className="font-display text-lg text-paper">
+              {events.length} evento{events.length !== 1 ? "s" : ""}
+            </p>
           </div>
-          <button onClick={onClose} className="text-muted hover:text-paper text-xl leading-none">✕</button>
+          <button onClick={onClose} className="text-muted hover:text-paper text-xl leading-none px-1">✕</button>
         </div>
-        <div className="overflow-y-auto flex-1 divide-y divide-[#2e2e2e]">
-          {events.length === 0 ? (
-            <p className="text-sm text-muted text-center py-8">Sin cobros este día.</p>
-          ) : events.map((e, i) => (
-            <div key={i} className="px-5 py-3 flex items-start gap-3">
-              <span className={clsx("mt-1.5 w-2 h-2 rounded-full flex-shrink-0", CURRENCY_DOT[e.bond.moneda] ?? "bg-gray-500")} />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-paper truncate">{e.bond.nombre}</p>
-                <div className="flex flex-wrap gap-1.5 mt-1">
-                  <span className={clsx("text-[10px] font-semibold px-1.5 py-0.5 rounded", CURRENCY_BADGE[e.bond.moneda] ?? "bg-gray-800 text-gray-300")}>
-                    {e.bond.moneda}
-                  </span>
-                  <Badge tone={e.tipo === "cupon" ? "gain" : "warning"}>
-                    {e.tipo === "cupon" ? "Cupón" : "Vencimiento"}
-                  </Badge>
-                  {e.bond.corredor && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#2a2a2a] text-muted">
-                      {e.bond.corredor}
-                    </span>
+
+        {/* Events list */}
+        <div className="overflow-y-auto flex-1 divide-y divide-ink-border/40">
+          {cupones.length > 0 && (
+            <div className="px-5 pt-3 pb-1">
+              <p className="text-[10px] text-muted uppercase tracking-widest mb-1">Cupones</p>
+            </div>
+          )}
+          {cupones.map((e, i) => {
+            const rate = getCuponRate(e.bond);
+            return (
+              <div key={"c" + i} className="px-5 py-3 flex items-start gap-3">
+                <div className="mt-0.5 shrink-0">
+                  <span className="inline-block rounded-full w-2 h-2 bg-gain mt-1" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-paper font-medium leading-snug">{e.bond.nombre}</p>
+                  <p className="text-[11px] text-muted mt-0.5 space-x-1">
+                    {rate != null && <span>Tasa {rate}%</span>}
+                    <span>·</span>
+                    <span>{e.bond.moneda}</span>
+                    <span>·</span>
+                    <span>{e.bond.cantidad} títulos</span>
+                    {e.bond.corredor && (
+                      <>
+                        <span>·</span>
+                        <span>{e.bond.corredor}</span>
+                      </>
+                    )}
+                  </p>
+                </div>
+                <div className="text-right shrink-0">
+                  {e.importe != null ? (
+                    <p className="text-sm font-mono font-semibold text-gain">
+                      {fmt(e.importe, e.bond.moneda)}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-muted italic">sin tasa</p>
                   )}
                 </div>
               </div>
-              {e.importe != null ? (
-                <p className="text-sm font-semibold text-paper whitespace-nowrap">
-                  {formatMoney(e.importe, e.bond.moneda)}
+            );
+          })}
+
+          {vencimientos.length > 0 && (
+            <div className="px-5 pt-3 pb-1">
+              <p className="text-[10px] text-muted uppercase tracking-widest mb-1">Vencimientos</p>
+            </div>
+          )}
+          {vencimientos.map((e, i) => (
+            <div key={"v" + i} className="px-5 py-3 flex items-start gap-3">
+              <div className="mt-0.5 shrink-0">
+                <span className="inline-block rounded-full w-2 h-2 bg-warn mt-1" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-paper font-medium leading-snug">{e.bond.nombre}</p>
+                <p className="text-[11px] text-muted mt-0.5">
+                  {e.bond.moneda} · {e.bond.cantidad} títulos · V.N. {fmt(e.bond.valor_nominal, e.bond.moneda)}
                 </p>
-              ) : (
-                <p className="text-xs text-muted whitespace-nowrap">sin importe</p>
-              )}
+              </div>
+              <div className="text-right shrink-0">
+                <p className="text-sm font-mono font-semibold text-warn">
+                  {fmt(e.importe!, e.bond.moneda)}
+                </p>
+              </div>
             </div>
           ))}
         </div>
+
+        {/* Totals footer */}
         {Object.keys(totals).length > 0 && (
-          <div className="border-t border-[#2e2e2e] px-5 py-3 bg-[#111] rounded-b-xl">
-            <p className="text-xs text-muted uppercase tracking-wide mb-2">Total del día</p>
-            <div className="flex flex-wrap gap-2">
-              {Object.entries(totals).map(([cur, amt]) => (
-                <span key={cur} className={clsx("text-xs font-bold px-2 py-1 rounded", CURRENCY_BADGE[cur] ?? "bg-gray-800 text-gray-300")}>
-                  {formatMoney(amt, cur)}
-                </span>
+          <div className="px-5 py-4 border-t border-ink-border bg-ink/80 shrink-0">
+            <p className="text-[10px] text-muted uppercase tracking-widest mb-2">Total cupones del día</p>
+            <div className="flex flex-wrap gap-4">
+              {Object.entries(totals).map(([cur, total]) => (
+                <div key={cur}>
+                  <p className="text-[10px] text-muted">{cur}</p>
+                  <p className="font-mono text-lg font-semibold text-paper">{fmt(total, cur)}</p>
+                </div>
               ))}
             </div>
           </div>
@@ -203,49 +188,59 @@ function DayModal({
   );
 }
 
-// ─── Weekly Strip ──────────────────────────────────────────────────────────────
+// ─── Weekly strip ─────────────────────────────────────────────────────────────
 
-function WeeklyStrip({ events, year, month }: { events: CalendarEvent[]; year: number; month: number }) {
-  const byWeek = useMemo(() => {
-    const map: Record<string, Record<string, number>> = {};
-    events.forEach((e) => {
-      if (e.date.getFullYear() !== year || e.date.getMonth() !== month) return;
-      if (e.importe == null) return;
-      const wk = getWeekKey(e.date);
-      if (!map[wk]) map[wk] = {};
-      const cur = e.bond.moneda;
-      map[wk][cur] = (map[wk][cur] ?? 0) + e.importe;
-    });
-    return map;
-  }, [events, year, month]);
+function WeeklyStrip({ cursor, events }: { cursor: Date; events: CalendarEvent[] }) {
+  const year = cursor.getFullYear();
+  const month = cursor.getMonth();
+  const firstOfMonth = new Date(year, month, 1);
+  const startOffset = (firstOfMonth.getDay() + 6) % 7;
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-  const weeks = Object.entries(byWeek).sort(([a], [b]) => a.localeCompare(b));
-  if (weeks.length === 0) return null;
+  const allDays: Date[] = [];
+  for (let i = startOffset - 1; i >= 0; i--) allDays.push(new Date(year, month, -i));
+  for (let d = 1; d <= daysInMonth; d++) allDays.push(new Date(year, month, d));
+
+  const weeks: Date[][] = [];
+  for (let i = 0; i < allDays.length; i += 7) weeks.push(allDays.slice(i, i + 7));
+
+  const weekSums = weeks.map((week) =>
+    totalsByCurrency(
+      events.filter((e) => e.tipo === "cupon" && week.some((d) => sameDay(d, e.date)))
+    )
+  );
+
+  if (!weekSums.some((s) => Object.keys(s).length > 0)) return null;
 
   return (
-    <Panel title="Disponible por semana">
-      <div className="divide-y divide-ink-border/50">
-        {weeks.map(([wk, totals]) => (
-          <div key={wk} className="py-2.5 flex items-center gap-4 flex-wrap">
-            <span className="text-xs text-muted w-24 flex-shrink-0">{weekLabel(wk)}</span>
-            <div className="flex flex-wrap gap-2">
-              {Object.entries(totals).map(([cur, amt]) => (
-                <span key={cur} className={clsx("text-xs font-semibold px-2 py-0.5 rounded", CURRENCY_BADGE[cur] ?? "bg-gray-800 text-gray-300")}>
-                  {formatMoney(amt, cur)}
-                </span>
-              ))}
+    <div className="rounded-xl border border-ink-border bg-ink/40 p-4">
+      <p className="text-xs text-muted uppercase tracking-wide mb-3">Flujo semanal de cupones</p>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        {weekSums.map((sums, wi) => {
+          const week = weeks[wi];
+          const label = `Sem. ${wi + 1} (${week[0].getDate()}–${week[week.length - 1].getDate()})`;
+          return (
+            <div key={wi} className="rounded-lg border border-ink-border/60 bg-ink/60 p-3">
+              <p className="text-[11px] text-muted mb-1">{label}</p>
+              {Object.keys(sums).length === 0 ? (
+                <p className="text-xs text-muted/50">—</p>
+              ) : (
+                Object.entries(sums).map(([cur, total]) => (
+                  <p key={cur} className="font-mono text-sm text-paper font-semibold">{fmt(total, cur)}</p>
+                ))
+              )}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
-      <p className="text-[11px] text-muted mt-3">
-        * Importes estimados: tasa cupón × valor nominal × cantidad. Tasa obtenida del campo <code>cupon</code> o del nombre del bono.
-      </p>
-    </Panel>
+    </div>
   );
 }
 
-// ─── Main Page ─────────────────────────────────────────────────────────────────
+// ─── Main ─────────────────────────────────────────────────────────────────────
+
+const MESES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+const DIAS = ["Lu","Ma","Mi","Ju","Vi","Sá","Do"];
 
 export default function CalendarioPage() {
   const [bonds, setBonds] = useState<Bond[]>([]);
@@ -264,10 +259,10 @@ export default function CalendarioPage() {
   }, []);
 
   const events = useMemo(() => buildEvents(bonds), [bonds]);
-  const year = cursor.getFullYear();
-  const month = cursor.getMonth();
 
   const monthDays = useMemo(() => {
+    const year = cursor.getFullYear();
+    const month = cursor.getMonth();
     const firstOfMonth = new Date(year, month, 1);
     const startOffset = (firstOfMonth.getDay() + 6) % 7;
     const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -275,10 +270,17 @@ export default function CalendarioPage() {
     for (let i = 0; i < startOffset; i++) cells.push(null);
     for (let d = 1; d <= daysInMonth; d++) cells.push(new Date(year, month, d));
     return cells;
-  }, [year, month]);
+  }, [cursor]);
 
-  const upcoming = events.filter((e) => e.date.getTime() >= Date.now() - 86400000).slice(0, 12);
-  const selectedDayEvents = selectedDay ? events.filter((e) => sameDay(e.date, selectedDay)) : [];
+  const upcoming = useMemo(
+    () => events.filter((e) => e.date.getTime() >= Date.now() - 86400000).slice(0, 12),
+    [events]
+  );
+
+  const selectedEvents = useMemo(
+    () => (selectedDay ? events.filter((e) => sameDay(e.date, selectedDay)) : []),
+    [selectedDay, events]
+  );
 
   return (
     <div className="p-6 md:p-8 flex flex-col gap-6">
@@ -289,17 +291,17 @@ export default function CalendarioPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4">
         <Panel
-          title={`${MESES[month]} ${year}`}
+          title={`${MESES[cursor.getMonth()]} ${cursor.getFullYear()}`}
           action={
             <div className="flex gap-2">
               <button
-                onClick={() => setCursor(new Date(year, month - 1, 1))}
+                onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))}
                 className="rounded border border-ink-border px-2.5 py-1 text-xs text-paper hover:border-gold transition-colors"
               >
                 ← Anterior
               </button>
               <button
-                onClick={() => setCursor(new Date(year, month + 1, 1))}
+                onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1))}
                 className="rounded border border-ink-border px-2.5 py-1 text-xs text-paper hover:border-gold transition-colors"
               >
                 Siguiente →
@@ -315,41 +317,34 @@ export default function CalendarioPage() {
           <div className="grid grid-cols-7 gap-1">
             {monthDays.map((day, i) => {
               if (!day) return <div key={i} className="h-16 rounded-lg" />;
-              const dayEvents = events.filter((e) => sameDay(e.date, day));
+              const dayEvs = events.filter((e) => sameDay(e.date, day));
               const isToday = sameDay(day, new Date());
-              const currencies = [...new Set(dayEvents.map((e) => e.bond.moneda))];
+              const nCupon = dayEvs.filter((e) => e.tipo === "cupon").length;
+              const nVenc = dayEvs.filter((e) => e.tipo === "vencimiento").length;
               return (
-                <button
+                <div
                   key={i}
-                  onClick={() => dayEvents.length > 0 && setSelectedDay(day)}
+                  onClick={() => dayEvs.length > 0 && setSelectedDay(day)}
                   className={clsx(
-                    "h-16 rounded-lg border px-1.5 py-1 flex flex-col gap-0.5 overflow-hidden text-left transition-colors w-full",
-                    isToday ? "border-gold bg-gold/5"
-                    : dayEvents.length > 0 ? "border-ink-border hover:border-gold/60 cursor-pointer"
-                    : "border-ink-border cursor-default"
+                    "h-16 rounded-lg border px-1.5 py-1 flex flex-col gap-0.5 overflow-hidden transition-colors",
+                    isToday ? "border-gold bg-gold/5" : "border-ink-border",
+                    dayEvs.length > 0 && "cursor-pointer hover:border-gold/60 hover:bg-gold/5"
                   )}
                 >
                   <span className={clsx("text-[11px]", isToday ? "text-gold font-semibold" : "text-muted")}>
                     {day.getDate()}
                   </span>
-                  {currencies.length > 0 && (
-                    <div className="flex gap-0.5 flex-wrap">
-                      {currencies.slice(0, 4).map((c) => (
-                        <span key={c} className={clsx("w-1.5 h-1.5 rounded-full", CURRENCY_DOT[c] ?? "bg-gray-500")} />
-                      ))}
-                    </div>
-                  )}
-                  {dayEvents.slice(0, 1).map((e, j) => (
-                    <span key={j} className={clsx("text-[9px] leading-tight rounded px-1 truncate", e.tipo === "cupon" ? "bg-gain/10 text-gain" : "bg-warn/10 text-warn")}>
-                      {dayEvents.length > 1 ? `${dayEvents.length} cobros` : e.label}
-                    </span>
-                  ))}
-                  {dayEvents.length === 1 && dayEvents[0].importe != null && (
-                    <span className="text-[8px] text-muted leading-tight truncate">
-                      {formatMoney(dayEvents[0].importe, dayEvents[0].bond.moneda)}
+                  {nCupon > 0 && (
+                    <span className="text-[9px] leading-tight rounded px-1 bg-gain/10 text-gain truncate">
+                      {nCupon} cupón{nCupon !== 1 ? "es" : ""}
                     </span>
                   )}
-                </button>
+                  {nVenc > 0 && (
+                    <span className="text-[9px] leading-tight rounded px-1 bg-warn/10 text-warn truncate">
+                      {nVenc} venc.
+                    </span>
+                  )}
+                </div>
               );
             })}
           </div>
@@ -361,15 +356,13 @@ export default function CalendarioPage() {
           ) : (
             <div className="flex flex-col divide-y divide-ink-border/50">
               {upcoming.map((e, i) => (
-                <div key={i} className="py-2.5 flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="text-sm text-paper truncate">{e.label}</p>
+                <div key={i} className="py-2.5 flex items-center justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm text-paper truncate">{e.bond.nombre}</p>
                     <p className="text-[11px] text-muted">
-                      {e.date.toLocaleDateString("es-UY", { day: "2-digit", month: "short", year: "numeric" })}
+                      {e.date.toLocaleDateString("es-UY", { day: "2-digit", month: "short" })}
+                      {e.importe != null ? ` · ${fmt(e.importe, e.bond.moneda)}` : ""}
                     </p>
-                    {e.importe != null && (
-                      <p className="text-[11px] text-gain font-medium">{formatMoney(e.importe, e.bond.moneda)}</p>
-                    )}
                   </div>
                   <Badge tone={e.tipo === "cupon" ? "gain" : "warning"}>
                     {e.tipo === "cupon" ? "Cupón" : "Venc."}
@@ -381,10 +374,10 @@ export default function CalendarioPage() {
         </Panel>
       </div>
 
-      <WeeklyStrip events={events} year={year} month={month} />
+      <WeeklyStrip cursor={cursor} events={events} />
 
       {selectedDay && (
-        <DayModal date={selectedDay} events={selectedDayEvents} onClose={() => setSelectedDay(null)} />
+        <DayModal day={selectedDay} events={selectedEvents} onClose={() => setSelectedDay(null)} />
       )}
     </div>
   );
