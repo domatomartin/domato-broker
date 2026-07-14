@@ -3,15 +3,9 @@ import { Bond, BondComputed } from "./types";
 // ---------------------------------------------------------------------------
 // Interés corrido (accrued interest)
 // ---------------------------------------------------------------------------
-// El corredor BCE&M reporta el "precio sucio" = precio limpio + interés corrido.
-// Sin este ajuste, el valor de mercado calculado en la app no coincide con
-// el informe del corredor.
-//
-// Frecuencia detectada automáticamente:
-//   - Si el próximo pago está en más de 183 días -> cupón anual (365 días)
-//   - Si está en 183 días o menos              -> cupón semi-anual (182 días)
-//
-// Limitación: si no se cargó cupon o proximo_pago_interes, devuelve 0.
+// Usa el campo `frecuencia` del bono para calcular correctamente:
+//   1 = anual, 2 = semestral, 4 = trimestral, 12 = mensual
+// Si el campo no está disponible, infiere semestral por defecto.
 // ---------------------------------------------------------------------------
 export function calcInteresCorrido(b: Bond): number {
   if (!b.cupon || !b.proximo_pago_interes) return 0;
@@ -27,10 +21,13 @@ export function calcInteresCorrido(b: Bond): number {
 
   if (diasHastaProxPago < 0) return 0;
 
-  const esAnual = diasHastaProxPago > 183;
-  const diasPeriodo = esAnual ? 365 : 182;
+  // Usar frecuencia explícita si existe, sino inferir por heurística
+  const frecuencia = b.frecuencia && b.frecuencia > 0 ? b.frecuencia : null;
+  const freq = frecuencia ?? (diasHastaProxPago > 183 ? 1 : 2);
+
+  const diasPeriodo = Math.round(365 / freq);
   const diasTranscurridos = Math.max(0, diasPeriodo - diasHastaProxPago);
-  const tasaPorPeriodo = esAnual ? b.cupon / 100 : b.cupon / 100 / 2;
+  const tasaPorPeriodo = (b.cupon / 100) / freq;
 
   return tasaPorPeriodo * b.valor_nominal * b.cantidad * (diasTranscurridos / diasPeriodo);
 }
