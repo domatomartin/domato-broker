@@ -11,6 +11,7 @@ import CsvImport from "@/components/CsvImport";
 import clsx from "clsx";
 
 type CuentaFiltro = "todas" | "2191" | "2192";
+type Tasas = { UYU_per_USD: number; ARS_per_USD: number; UI_in_UYU: number; fetched_at: string };
 
 const CUENTAS: { value: CuentaFiltro; label: string }[] = [
   { value: "todas", label: "Todas las cuentas" },
@@ -18,7 +19,6 @@ const CUENTAS: { value: CuentaFiltro; label: string }[] = [
   { value: "2192", label: "Cta. 2192 — Conjunta" },
 ];
 
-// Formatea valores para monedas no-ISO (UI) y estándar
 function formatValorResumen(value: number, moneda: string) {
   const isosValidos = ["USD", "UYU", "ARS", "EUR", "BRL"];
   if (!isosValidos.includes(moneda)) {
@@ -27,10 +27,22 @@ function formatValorResumen(value: number, moneda: string) {
   return formatMoney(value, moneda);
 }
 
+function calcTotalUSD(
+  totales: Record<string, { valorTotal: number }>,
+  tasas: Tasas
+): number {
+  const usd = totales["USD"]?.valorTotal ?? 0;
+  const uyu = (totales["UYU"]?.valorTotal ?? 0) / tasas.UYU_per_USD;
+  const ui = ((totales["UI"]?.valorTotal ?? 0) * tasas.UI_in_UYU) / tasas.UYU_per_USD;
+  const ars = (totales["ARS"]?.valorTotal ?? 0) / tasas.ARS_per_USD;
+  return usd + uyu + ui + ars;
+}
+
 export default function CarteraPage() {
   const [bonds, setBonds] = useState<Bond[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [cuentaFiltro, setCuentaFiltro] = useState<CuentaFiltro>("todas");
+  const [tasas, setTasas] = useState<Tasas | null>(null);
 
   async function load() {
     const { data } = await supabase
@@ -43,6 +55,10 @@ export default function CarteraPage() {
 
   useEffect(() => {
     load();
+    fetch("/api/cotizaciones")
+      .then((r) => r.json())
+      .then((t: Tasas) => setTasas(t))
+      .catch(() => {});
   }, []);
 
   const bondsFiltrados =
@@ -53,12 +69,13 @@ export default function CarteraPage() {
   const computed = computePortfolio(bondsFiltrados);
   const totales = portfolioTotals(computed);
 
-  // Orden de monedas: USD primero, luego UYU, UI, ARS, resto
   const ordenMonedas = ["USD", "UYU", "UI", "ARS"];
   const monedasOrdenadas = [
     ...ordenMonedas.filter((m) => totales[m]),
     ...Object.keys(totales).filter((m) => !ordenMonedas.includes(m)),
   ];
+
+  const totalUSD = tasas ? calcTotalUSD(totales, tasas) : null;
 
   return (
     <div className="p-6 md:p-8 flex flex-col gap-6">
@@ -81,6 +98,23 @@ export default function CarteraPage() {
           </button>
         </div>
       </div>
+
+      {/* Total equivalente USD */}
+      {totalUSD !== null && (
+        <div className="rounded-lg border border-gold/40 bg-gold/5 p-5 flex items-center justify-between">
+          <div>
+            <span className="text-xs font-semibold uppercase tracking-wide text-gold">
+              Total cartera equivalente USD
+            </span>
+            <p className="text-3xl font-mono font-bold text-gold mt-1">
+              {formatMoney(totalUSD, "USD")}
+            </p>
+            <p className="text-xs text-muted mt-1">
+              1 USD = {tasas!.UYU_per_USD.toFixed(2)} UYU · 1 UI = {tasas!.UI_in_UYU.toFixed(4)} UYU · 1 USD = {tasas!.ARS_per_USD.toFixed(0)} ARS
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Tabs de cuenta */}
       <div className="flex gap-1 border-b border-ink-border">
