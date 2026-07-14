@@ -24,8 +24,9 @@ export default function PerfilPage() {
         supabase.from("bonds").select("*").eq("estado", "activo"),
       ]);
       if (prof) setProfile(prof as InvestorProfile);
-      const totals = portfolioTotals(computePortfolio((bonds as Bond[]) ?? []));
-      setPatrimonio(totals.valorTotal);
+      const totalsPC = portfolioTotals(computePortfolio((bonds as Bond[]) ?? []));
+      const totalVal = Object.values(totalsPC).reduce((s, t) => s + t.valorTotal, 0);
+      setPatrimonio(totalVal);
       setLoading(false);
     }
     load();
