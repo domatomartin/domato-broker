@@ -41,9 +41,9 @@ function calcTotalUSD(
   return usd + uyu + ui + ars;
 }
 
-/** Infiere tipo: bono si tiene cupón o vencimiento, acción si no */
+/** Infiere tipo: bono si tiene cupon o vencimiento, accion si no */
 function getTipo(b: Bond): "bono" | "accion" {
-  return b.tasa_cupon && b.tasa_cupon > 0 || b.proximo_vencimiento ? "bono" : "accion";
+  return (b.cupon != null && b.cupon > 0) || !!b.proximo_vencimiento ? "bono" : "accion";
 }
 
 /** Infiere origen desde el prefijo del ISIN (UY = local, resto = exterior) */
@@ -109,11 +109,9 @@ export default function CarteraPage() {
       .catch(() => {});
   }, []);
 
-  // Base: filtro por cuenta
   const bondsPorCuenta =
     cuentaFiltro === "todas" ? bonds : bonds.filter((b) => b.cuenta === cuentaFiltro);
 
-  // Contar para los chips (sobre bondsPorCuenta, sin aplicar ese mismo filtro)
   const countMoneda = (m: MonedaFiltro) =>
     m === "todas" ? bondsPorCuenta.length : bondsPorCuenta.filter((b) => b.moneda === m).length;
   const countTipo = (t: TipoFiltro) =>
@@ -121,7 +119,6 @@ export default function CarteraPage() {
   const countOrigen = (o: OrigenFiltro) =>
     o === "todos" ? bondsPorCuenta.length : bondsPorCuenta.filter((b) => getOrigen(b) === o).length;
 
-  // Aplicar todos los filtros
   const bondsFiltrados = bondsPorCuenta
     .filter((b) => monedaFiltro === "todas" || b.moneda === monedaFiltro)
     .filter((b) => tipoFiltro === "todos" || getTipo(b) === tipoFiltro)
@@ -138,7 +135,6 @@ export default function CarteraPage() {
 
   const totalUSD = tasas ? calcTotalUSD(totales, tasas) : null;
 
-  // Monedas presentes en la cuenta actual (para mostrar solo chips relevantes)
   const monedasPresentes = [...new Set(bondsPorCuenta.map((b) => b.moneda))];
   const monedasFiltro: MonedaFiltro[] = (["USD", "UYU", "ARS", "UI"] as MonedaFiltro[]).filter(
     (m) => monedasPresentes.includes(m)
@@ -146,7 +142,6 @@ export default function CarteraPage() {
 
   return (
     <div className="p-6 md:p-8 flex flex-col gap-6">
-      {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="font-display text-3xl text-paper">Cartera</h1>
@@ -166,7 +161,6 @@ export default function CarteraPage() {
         </div>
       </div>
 
-      {/* Total equivalente USD */}
       {totalUSD !== null && (
         <div className="rounded-lg border border-gold/40 bg-gold/5 p-5 flex items-center justify-between">
           <div>
@@ -183,7 +177,6 @@ export default function CarteraPage() {
         </div>
       )}
 
-      {/* Tabs de cuenta */}
       <div className="flex gap-1 border-b border-ink-border">
         {CUENTAS.map((c) => (
           <button
@@ -213,109 +206,56 @@ export default function CarteraPage() {
 
       {/* Filtros */}
       <div className="flex flex-wrap gap-x-4 gap-y-2 items-center text-xs">
-        {/* Moneda */}
         <div className="flex items-center gap-1.5 flex-wrap">
           <span className="text-muted font-medium mr-0.5">Moneda</span>
-          <FilterChip
-            active={monedaFiltro === "todas"}
-            label="Todas"
-            count={countMoneda("todas")}
-            onClick={() => setMonedaFiltro("todas")}
-          />
+          <FilterChip active={monedaFiltro === "todas"} label="Todas" count={countMoneda("todas")} onClick={() => setMonedaFiltro("todas")} />
           {monedasFiltro.map((m) => (
-            <FilterChip
-              key={m}
-              active={monedaFiltro === m}
-              label={m}
-              count={countMoneda(m)}
-              onClick={() => setMonedaFiltro(m)}
-            />
+            <FilterChip key={m} active={monedaFiltro === m} label={m} count={countMoneda(m)} onClick={() => setMonedaFiltro(m)} />
           ))}
         </div>
 
         <div className="w-px h-4 bg-ink-border hidden sm:block" />
 
-        {/* Tipo */}
         <div className="flex items-center gap-1.5 flex-wrap">
           <span className="text-muted font-medium mr-0.5">Tipo</span>
-          {(
-            [
-              { value: "todos", label: "Todos" },
-              { value: "bono", label: "Bono" },
-              { value: "accion", label: "Acción" },
-            ] as { value: TipoFiltro; label: string }[]
-          ).map(({ value, label }) => (
-            <FilterChip
-              key={value}
-              active={tipoFiltro === value}
-              label={label}
-              count={value !== "todos" ? countTipo(value) : undefined}
-              onClick={() => setTipoFiltro(value)}
-            />
+          {([ { value: "todos", label: "Todos" }, { value: "bono", label: "Bono" }, { value: "accion", label: "Acción" } ] as { value: TipoFiltro; label: string }[]).map(({ value, label }) => (
+            <FilterChip key={value} active={tipoFiltro === value} label={label} count={value !== "todos" ? countTipo(value) : undefined} onClick={() => setTipoFiltro(value)} />
           ))}
         </div>
 
         <div className="w-px h-4 bg-ink-border hidden sm:block" />
 
-        {/* Origen */}
         <div className="flex items-center gap-1.5 flex-wrap">
           <span className="text-muted font-medium mr-0.5">Origen</span>
-          {(
-            [
-              { value: "todos", label: "Todos" },
-              { value: "local", label: "Uruguay" },
-              { value: "exterior", label: "Exterior" },
-            ] as { value: OrigenFiltro; label: string }[]
-          ).map(({ value, label }) => (
-            <FilterChip
-              key={value}
-              active={origenFiltro === value}
-              label={label}
-              count={value !== "todos" ? countOrigen(value) : undefined}
-              onClick={() => setOrigenFiltro(value)}
-            />
+          {([ { value: "todos", label: "Todos" }, { value: "local", label: "Uruguay" }, { value: "exterior", label: "Exterior" } ] as { value: OrigenFiltro; label: string }[]).map(({ value, label }) => (
+            <FilterChip key={value} active={origenFiltro === value} label={label} count={value !== "todos" ? countOrigen(value) : undefined} onClick={() => setOrigenFiltro(value)} />
           ))}
         </div>
       </div>
 
-      {/* Resumen por moneda */}
       {monedasOrdenadas.length > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {monedasOrdenadas.map((moneda) => {
             const t = totales[moneda];
             return (
-              <div
-                key={moneda}
-                className="rounded-lg border border-ink-border bg-ink/30 p-4 flex flex-col gap-1"
-              >
+              <div key={moneda} className="rounded-lg border border-ink-border bg-ink/30 p-4 flex flex-col gap-1">
                 <span className="text-xs font-semibold uppercase tracking-wide text-muted">
                   {moneda}
-                  {moneda === "UI" && (
-                    <span className="ml-1 text-warn normal-case">aprox BCU</span>
-                  )}
+                  {moneda === "UI" && <span className="ml-1 text-warn normal-case">aprox BCU</span>}
                 </span>
                 <span className="text-xl font-mono font-semibold text-paper">
                   {formatValorResumen(t.valorTotal, moneda)}
                 </span>
                 <div className="flex items-center gap-2 text-xs">
-                  <span
-                    className={clsx(
-                      "font-medium",
-                      t.gananciaTotal >= 0 ? "text-gain" : "text-loss"
-                    )}
-                  >
-                    {t.gananciaTotal >= 0 ? "+" : ""}
-                    {formatValorResumen(t.gananciaTotal, moneda)}
+                  <span className={clsx("font-medium", t.gananciaTotal >= 0 ? "text-gain" : "text-loss")}>
+                    {t.gananciaTotal >= 0 ? "+" : ""}{formatValorResumen(t.gananciaTotal, moneda)}
                   </span>
                   <span className="text-muted">
-                    {t.rentabilidadTotal >= 0 ? "+" : ""}
-                    {t.rentabilidadTotal.toFixed(2)}%
+                    {t.rentabilidadTotal >= 0 ? "+" : ""}{t.rentabilidadTotal.toFixed(2)}%
                   </span>
                 </div>
                 {t.interesCorrido > 0 && (
-                  <span className="text-xs text-muted">
-                    Int. corrido: {formatValorResumen(t.interesCorrido, moneda)}
-                  </span>
+                  <span className="text-xs text-muted">Int. corrido: {formatValorResumen(t.interesCorrido, moneda)}</span>
                 )}
               </div>
             );
@@ -323,26 +263,13 @@ export default function CarteraPage() {
         </div>
       )}
 
-      {/* Formulario nuevo activo */}
       {showForm && (
         <Panel title="Nuevo activo">
-          <AddBondForm
-            onAdded={() => {
-              load();
-              setShowForm(false);
-            }}
-          />
+          <AddBondForm onAdded={() => { load(); setShowForm(false); }} />
         </Panel>
       )}
 
-      {/* Tabla */}
-      <Panel
-        title={
-          cuentaFiltro === "todas"
-            ? "Detalle de cartera"
-            : `Cuenta ${cuentaFiltro}`
-        }
-      >
+      <Panel title={cuentaFiltro === "todas" ? "Detalle de cartera" : `Cuenta ${cuentaFiltro}`}>
         <PortfolioTable bonds={computed} onChanged={load} />
       </Panel>
     </div>
