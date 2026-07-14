@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { BondComputed } from "@/lib/types";
 import { formatMoney, formatPct, daysUntil, portfolioTotals } from "@/lib/calculations";
 import { supabase } from "@/lib/supabase";
@@ -13,10 +13,76 @@ function formatValor(value: number, moneda: string) {
   return formatMoney(value, moneda);
 }
 
+function PriceCell({
+  bondId, field, value, onSaved,
+}: {
+  bondId: string;
+  field: "precio_actual" | "precio_compra";
+  value: number;
+  onSaved: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [flash, setFlash] = useState<"ok" | "err" | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  function startEdit(e: React.MouseEvent) {
+    e.stopPropagation();
+    setDraft(value.toString());
+    setEditing(true);
+    setTimeout(() => inputRef.current?.select(), 0);
+  }
+
+  async function save() {
+    const parsed = parseFloat(draft.replace(",", "."));
+    if (isNaN(parsed) || parsed < 0) { setEditing(false); return; }
+    setSaving(true);
+    setEditing(false);
+    const { error } = await supabase.from("bonds").update({ [field]: parsed }).eq("id", bondId);
+    setSaving(false);
+    if (error) { setFlash("err"); } else { setFlash("ok"); onSaved(); }
+    setTimeout(() => setFlash(null), 1500);
+  }
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        type="number"
+        step="0.01"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={save}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") save();
+          if (e.key === "Escape") setEditing(false);
+        }}
+        onClick={(e) => e.stopPropagation()}
+        className="w-20 rounded border border-gold bg-ink px-1 py-0 text-right text-sm font-mono text-paper outline-none"
+      />
+    );
+  }
+
+  return (
+    <span
+      onClick={startEdit}
+      title={`Click para editar ${field === "precio_actual" ? "precio actual" : "precio compra"}`}
+      className={clsx(
+        "cursor-pointer rounded px-1 transition-colors",
+        saving && "opacity-50",
+        flash === "ok" && "text-gain",
+        flash === "err" && "text-loss",
+        !saving && !flash && "hover:text-gold hover:bg-gold/10"
+      )}
+    >
+      {saving ? "…" : value.toFixed(2)}
+    </span>
+  );
+}
+
 export default function PortfolioTable({
-  bonds,
-  onChanged,
-  onSelect,
+  bonds, onChanged, onSelect,
 }: {
   bonds: BondComputed[];
   onChanged?: () => void;
@@ -41,20 +107,24 @@ export default function PortfolioTable({
 
   return (
     <div className="overflow-x-auto">
+      <p className="text-[11px] text-muted mb-2 italic">
+        Hacé click en cualquier precio para editarlo directamente.
+      </p>
       <table className="w-full text-sm">
         <thead>
           <tr className="text-left text-[11px] uppercase tracking-wide text-muted border-b border-ink-border">
             <th className="py-2 pr-4">Bono</th>
             <th className="py-2 pr-4">ISIN</th>
             <th className="py-2 pr-4">Moneda</th>
-            <th className="py-2 pr-4 text-right">Cantidad</th>
-            <th className="py-2 pr-4 text-right">Precio actual</th>
+            <th className="py-2 pr-4 text-right">V.Nominal</th>
+            <th className="py-2 pr-4 text-right">P.Compra %</th>
+            <th className="py-2 pr-4 text-right">P.Actual %</th>
             <th className="py-2 pr-4 text-right">V. Limpio</th>
             <th className="py-2 pr-4 text-right">Int. corrido</th>
             <th className="py-2 pr-4 text-right">V. Mercado</th>
             <th className="py-2 pr-4 text-right">G/P</th>
             <th className="py-2 pr-4 text-right">Rent. %</th>
-            <th className="py-2 pr-4 text-right">Próx. vencimiento</th>
+            <th className="py-2 pr-4 text-right">Prox. venc.</th>
             <th className="py-2 pr-4 text-right">Acciones</th>
           </tr>
         </thead>
@@ -76,17 +146,26 @@ export default function PortfolioTable({
                 </td>
                 <td className="py-2.5 pr-4 font-mono text-xs text-muted">{b.isin ?? "—"}</td>
                 <td className="py-2.5 pr-4">{b.moneda}</td>
-                <td className="py-2.5 pr-4 text-right font-mono mono-num">{b.cantidad.toLocaleString("es-UY")}</td>
-                <td className="py-2.5 pr-4 text-right font-mono mono-num">{b.precio_actual.toFixed(2)}</td>
-                <td className="py-2.5 pr-4 text-right font-mono mono-num">{formatValor((b.precio_actual / 100) * b.valor_nominal * b.cantidad, b.moneda)}</td>
-                <td className="py-2.5 pr-4 text-right font-mono mono-num text-muted">
-                  {b.cupon != null ? formatValor((b.cupon / 100) * b.valor_nominal * b.cantidad, b.moneda) : "—"}
+                <td className="py-2.5 pr-4 text-right font-mono">
+                  {b.valor_nominal.toLocaleString("es-UY", { maximumFractionDigits: 0 })}
                 </td>
-                <td className="py-2.5 pr-4 text-right font-mono mono-num">{formatValor(b.valor_mercado, b.moneda)}</td>
-                <td className={clsx("py-2.5 pr-4 text-right font-mono mono-num", b.ganancia >= 0 ? "text-gain" : "text-loss")}>
+                <td className="py-2.5 pr-4 text-right font-mono" onClick={(e) => e.stopPropagation()}>
+                  <PriceCell bondId={b.id} field="precio_compra" value={b.precio_compra} onSaved={() => onChanged?.()} />
+                </td>
+                <td className="py-2.5 pr-4 text-right font-mono" onClick={(e) => e.stopPropagation()}>
+                  <PriceCell bondId={b.id} field="precio_actual" value={b.precio_actual} onSaved={() => onChanged?.()} />
+                </td>
+                <td className="py-2.5 pr-4 text-right font-mono">
+                  {formatValor((b.precio_actual / 100) * b.valor_nominal * b.cantidad, b.moneda)}
+                </td>
+                <td className="py-2.5 pr-4 text-right font-mono text-muted">
+                  {b.interes_corrido > 0 ? formatValor(b.interes_corrido, b.moneda) : "—"}
+                </td>
+                <td className="py-2.5 pr-4 text-right font-mono">{formatValor(b.valor_mercado, b.moneda)}</td>
+                <td className={clsx("py-2.5 pr-4 text-right font-mono", b.ganancia >= 0 ? "text-gain" : "text-loss")}>
                   {formatValor(b.ganancia, b.moneda)}
                 </td>
-                <td className={clsx("py-2.5 pr-4 text-right font-mono mono-num", b.rentabilidad_pct >= 0 ? "text-gain" : "text-loss")}>
+                <td className={clsx("py-2.5 pr-4 text-right font-mono", b.rentabilidad_pct >= 0 ? "text-gain" : "text-loss")}>
                   {formatPct(b.rentabilidad_pct)}
                 </td>
                 <td className="py-2.5 pr-4 text-right text-xs">
@@ -111,11 +190,11 @@ export default function PortfolioTable({
         <tfoot>
           {Object.entries(totalesPorMoneda).map(([moneda, t]) => (
             <tr key={moneda} className="border-t border-ink-border font-medium">
-              <td className="py-2.5 pr-4 text-paper" colSpan={8}>Total {moneda}</td>
-              <td className={clsx("py-2.5 pr-4 text-right font-mono mono-num", t.gananciaTotal >= 0 ? "text-gain" : "text-loss")}>
+              <td className="py-2.5 pr-4 text-paper" colSpan={9}>Total {moneda}</td>
+              <td className={clsx("py-2.5 pr-4 text-right font-mono", t.gananciaTotal >= 0 ? "text-gain" : "text-loss")}>
                 {formatValor(t.gananciaTotal, moneda)}
               </td>
-              <td className={clsx("py-2.5 pr-4 text-right font-mono mono-num", t.rentabilidadTotal >= 0 ? "text-gain" : "text-loss")}>
+              <td className={clsx("py-2.5 pr-4 text-right font-mono", t.rentabilidadTotal >= 0 ? "text-gain" : "text-loss")}>
                 {formatPct(t.rentabilidadTotal)}
               </td>
               <td colSpan={2}></td>
@@ -125,4 +204,4 @@ export default function PortfolioTable({
       </table>
     </div>
   );
-}
+                   }
