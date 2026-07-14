@@ -35,7 +35,13 @@ export default function DashboardPage() {
   }, []);
 
   const computed = computePortfolio(bonds);
-  const totals = portfolioTotals(computed);
+  const totalsPerCurrency = portfolioTotals(computed);
+const _tv = Object.values(totalsPerCurrency);
+const valorTotal = _tv.reduce((s, t) => s + t.valorTotal, 0);
+const costoTotal = _tv.reduce((s, t) => s + t.costoTotal, 0);
+const gananciaTotal = valorTotal - costoTotal;
+const rentabilidadTotal = costoTotal > 0 ? (gananciaTotal / costoTotal) * 100 : 0;
+const totals = { valorTotal, costoTotal, gananciaTotal, rentabilidadTotal };
 
   const last = snapshots[snapshots.length - 1];
   const prevDay = snapshots[snapshots.length - 2];
