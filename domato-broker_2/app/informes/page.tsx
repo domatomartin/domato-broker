@@ -6,6 +6,8 @@ import { Bond, PatrimonioSnapshot } from "@/lib/types";
 import { computePortfolio, portfolioTotals, formatMoney, formatPct } from "@/lib/calculations";
 import { Panel } from "@/components/Card";
 
+type Tasas = { UYU_per_USD: number; ARS_per_USD: number; UI_in_UYU: number; fetched_at: string };
+
 function formatValorPDF(value: number, moneda: string): string {
   const isosValidos = ["USD", "UYU", "ARS", "EUR", "BRL"];
   if (!isosValidos.includes(moneda)) {
@@ -14,9 +16,21 @@ function formatValorPDF(value: number, moneda: string): string {
   return formatMoney(value, moneda);
 }
 
+function calcTotalUSD(
+  totales: Record<string, { valorTotal: number }>,
+  tasas: Tasas
+): number {
+  const usd = totales["USD"]?.valorTotal ?? 0;
+  const uyu = (totales["UYU"]?.valorTotal ?? 0) / tasas.UYU_per_USD;
+  const ui = ((totales["UI"]?.valorTotal ?? 0) * tasas.UI_in_UYU) / tasas.UYU_per_USD;
+  const ars = (totales["ARS"]?.valorTotal ?? 0) / tasas.ARS_per_USD;
+  return usd + uyu + ui + ars;
+}
+
 export default function InformesPage() {
   const [bonds, setBonds] = useState<Bond[]>([]);
   const [snapshots, setSnapshots] = useState<PatrimonioSnapshot[]>([]);
+  const [tasas, setTasas] = useState<Tasas | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -28,6 +42,10 @@ export default function InformesPage() {
       setSnapshots((s as PatrimonioSnapshot[]) ?? []);
     }
     load();
+    fetch("/api/cotizaciones")
+      .then((r) => r.json())
+      .then((t: Tasas) => setTasas(t))
+      .catch(() => {});
   }, []);
 
   const computed = computePortfolio(bonds);
@@ -43,8 +61,27 @@ export default function InformesPage() {
     doc.setFontSize(10);
     doc.text(`Generado el ${new Date().toLocaleDateString("es-UY")}`, 14, 25);
 
-    // Totales por moneda
     let y = 32;
+
+    // Total equivalente en USD
+    if (tasas) {
+      const totalUSD = calcTotalUSD(totales, tasas);
+      doc.setFontSize(13);
+      doc.setTextColor(180, 140, 60);
+      doc.text(`Total cartera: ${formatMoney(totalUSD, "USD")} (equivalente USD)`, 14, y);
+      doc.setTextColor(100, 100, 100);
+      doc.setFontSize(8);
+      doc.text(
+        `Tasas: 1 USD = ${tasas.UYU_per_USD.toFixed(2)} UYU · 1 UI = ${tasas.UI_in_UYU.toFixed(4)} UYU · 1 USD = ${tasas.ARS_per_USD.toFixed(0)} ARS · fuente: open.er-api.com / BCU`,
+        14,
+        y + 6
+      );
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(10);
+      y += 14;
+    }
+
+    // Totales por moneda
     const ordenMonedas = ["USD", "UYU", "UI", "ARS"];
     const monedasOrdenadas = [
       ...ordenMonedas.filter((m) => totales[m]),
@@ -53,7 +90,7 @@ export default function InformesPage() {
     for (const moneda of monedasOrdenadas) {
       const t = totales[moneda];
       doc.text(
-        `Valor cartera ${moneda}: ${formatValorPDF(t.valorTotal, moneda)}  ·  Rent.: ${formatPct(t.rentabilidadTotal)}`,
+        `Valor cartera ${moneda}: ${formatValorPDF(t.valorTotal, moneda)} · Rent.: ${formatPct(t.rentabilidadTotal)}`,
         14,
         y
       );
@@ -184,4 +221,4 @@ export default function InformesPage() {
       </Panel>
     </div>
   );
-  }
+}
