@@ -6,6 +6,14 @@ import { Bond, PatrimonioSnapshot } from "@/lib/types";
 import { computePortfolio, portfolioTotals, formatMoney, formatPct } from "@/lib/calculations";
 import { Panel } from "@/components/Card";
 
+function formatValorPDF(value: number, moneda: string): string {
+  const isosValidos = ["USD", "UYU", "ARS", "EUR", "BRL"];
+  if (!isosValidos.includes(moneda)) {
+    return value.toLocaleString("es-UY", { maximumFractionDigits: 0 }) + " " + moneda;
+  }
+  return formatMoney(value, moneda);
+}
+
 export default function InformesPage() {
   const [bonds, setBonds] = useState<Bond[]>([]);
   const [snapshots, setSnapshots] = useState<PatrimonioSnapshot[]>([]);
@@ -23,7 +31,7 @@ export default function InformesPage() {
   }, []);
 
   const computed = computePortfolio(bonds);
-  const totals = portfolioTotals(computed);
+  const totales = portfolioTotals(computed);
 
   async function exportarPDF(tipo: "diario" | "mensual" | "anual") {
     const { default: jsPDF } = await import("jspdf");
@@ -34,17 +42,33 @@ export default function InformesPage() {
     doc.text(`Informe ${tipo} — Domato Broker`, 14, 18);
     doc.setFontSize(10);
     doc.text(`Generado el ${new Date().toLocaleDateString("es-UY")}`, 14, 25);
-    doc.text(`Valor total de cartera: ${formatMoney(totals.valorTotal)}`, 14, 32);
-    doc.text(`Rentabilidad acumulada: ${formatPct(totals.rentabilidadTotal)}`, 14, 38);
+
+    // Totales por moneda
+    let y = 32;
+    const ordenMonedas = ["USD", "UYU", "UI", "ARS"];
+    const monedasOrdenadas = [
+      ...ordenMonedas.filter((m) => totales[m]),
+      ...Object.keys(totales).filter((m) => !ordenMonedas.includes(m)),
+    ];
+    for (const moneda of monedasOrdenadas) {
+      const t = totales[moneda];
+      doc.text(
+        `Valor cartera ${moneda}: ${formatValorPDF(t.valorTotal, moneda)}  ·  Rent.: ${formatPct(t.rentabilidadTotal)}`,
+        14,
+        y
+      );
+      y += 6;
+    }
 
     autoTable(doc, {
-      startY: 45,
-      head: [["Bono", "Moneda", "Valor de mercado", "G/P", "Rent. %"]],
+      startY: y + 2,
+      head: [["Bono", "Moneda", "Cuenta", "Valor de mercado", "G/P", "Rent. %"]],
       body: computed.map((b) => [
         b.nombre,
         b.moneda,
-        formatMoney(b.valor_mercado, b.moneda === "UYU" ? "UYU" : "USD"),
-        formatMoney(b.ganancia, b.moneda === "UYU" ? "UYU" : "USD"),
+        b.cuenta ?? "—",
+        formatValorPDF(b.valor_mercado, b.moneda),
+        formatValorPDF(b.ganancia, b.moneda),
         formatPct(b.rentabilidad_pct),
       ]),
       styles: { fontSize: 9 },
@@ -61,6 +85,7 @@ export default function InformesPage() {
         Bono: b.nombre,
         ISIN: b.isin,
         Moneda: b.moneda,
+        Cuenta: b.cuenta ?? "—",
         Cantidad: b.cantidad,
         "Precio actual": b.precio_actual,
         "Valor de mercado": b.valor_mercado,
@@ -80,16 +105,13 @@ export default function InformesPage() {
     <div className="p-6 md:p-8 flex flex-col gap-6">
       <div>
         <h1 className="font-display text-3xl text-paper">Informes</h1>
-        <p className="text-sm text-muted mt-1">
-          Reportes exportables en PDF y Excel.
-        </p>
+        <p className="text-sm text-muted mt-1">Reportes exportables en PDF y Excel.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Panel title="Informe diario">
           <p className="text-xs text-muted mb-4">
-            Valor de cartera, rentabilidad, variación diaria, cobros de interés
-            y posición de efectivo.
+            Valor de cartera por moneda, rentabilidad y posición completa.
           </p>
           <button
             onClick={() => exportarPDF("diario")}
@@ -100,8 +122,7 @@ export default function InformesPage() {
         </Panel>
         <Panel title="Informe mensual">
           <p className="text-xs text-muted mb-4">
-            Rentabilidad mensual, evolución patrimonial y bonos más/menos
-            rentables.
+            Rentabilidad mensual, evolución patrimonial y bonos más/menos rentables.
           </p>
           <button
             onClick={() => exportarPDF("mensual")}
@@ -112,8 +133,7 @@ export default function InformesPage() {
         </Panel>
         <Panel title="Informe anual">
           <p className="text-xs text-muted mb-4">
-            Rentabilidad anual, rendimiento por activo y por moneda,
-            comparativo histórico.
+            Rentabilidad anual, rendimiento por activo y por moneda.
           </p>
           <button
             onClick={() => exportarPDF("anual")}
@@ -136,8 +156,7 @@ export default function InformesPage() {
         }
       >
         <p className="text-xs text-muted">
-          Incluye todos los campos de cada bono con valores y rentabilidad
-          calculados al día de hoy.
+          Incluye todos los campos de cada bono con valores y rentabilidad calculados al día de hoy.
         </p>
       </Panel>
 
@@ -165,4 +184,4 @@ export default function InformesPage() {
       </Panel>
     </div>
   );
-}
+  }
