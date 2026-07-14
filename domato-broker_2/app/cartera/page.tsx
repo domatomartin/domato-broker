@@ -93,6 +93,8 @@ export default function CarteraPage() {
   const [origenFiltro, setOrigenFiltro] = useState<OrigenFiltro>("todos");
   const [tasas, setTasas] = useState<Tasas | null>(null);
   const [selectedBond, setSelectedBond] = useState<BondComputed | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshMsg, setRefreshMsg] = useState<string | null>(null);
 
   async function load() {
     const { data } = await supabase
@@ -110,6 +112,44 @@ export default function CarteraPage() {
       .then((t: Tasas) => setTasas(t))
       .catch(() => {});
   }, []);
+
+  async function actualizarPrecios() {
+    setRefreshing(true);
+    setRefreshMsg(null);
+    try {
+      const resp = await fetch("/api/precios");
+      if (!resp.ok) throw new Error(`Error al consultar BVM: ${resp.status}`);
+      const precios: Record<string, { precio: number; cupon: number; fecha: string }> =
+        await resp.json();
+      if ("error" in precios) throw new Error((precios as { error: string }).error);
+      let actualizados = 0;
+      const sinPrecio: string[] = [];
+      for (const bond of bonds) {
+        if (!bond.isin) continue;
+        const dato = precios[bond.isin];
+        if (dato) {
+          await supabase
+            .from("bonds")
+            .update({ precio_actual: dato.precio })
+            .eq("id", bond.id);
+          actualizados++;
+        } else {
+          sinPrecio.push(bond.nombre);
+        }
+      }
+      await load();
+      const base = `✓ ${actualizados} precio${actualizados !== 1 ? "s" : ""} actualizados desde BVM`;
+      setRefreshMsg(
+        sinPrecio.length > 0
+          ? `${base} · Sin precio BVM: ${sinPrecio.join(", ")}`
+          : base
+      );
+    } catch (err) {
+      setRefreshMsg(`Error: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   const bondsPorCuenta =
     cuentaFiltro === "todas" ? bonds : bonds.filter((b) => b.cuenta === cuentaFiltro);
@@ -159,6 +199,13 @@ export default function CarteraPage() {
         <div className="flex items-center gap-3 flex-wrap">
           <CsvImport onImported={load} />
           <button
+            onClick={actualizarPrecios}
+            disabled={refreshing}
+            className="rounded border border-gold/40 px-4 py-2 text-sm font-medium text-gold hover:bg-gold/10 transition-colors disabled:opacity-50"
+          >
+            {refreshing ? "Actualizando…" : "↻ Precios BVM"}
+          </button>
+          <button
             onClick={() => setShowImport((s) => !s)}
             className="rounded border border-ink-border px-4 py-2 text-sm text-paper hover:border-gold hover:text-gold transition-colors"
           >
@@ -172,6 +219,12 @@ export default function CarteraPage() {
           </button>
         </div>
       </div>
+
+      {refreshMsg && (
+        <p className="text-xs text-muted bg-surface-2 rounded px-3 py-2">
+          {refreshMsg}
+        </p>
+      )}
 
       {showImport && (
         <Panel title="Importar informe BCE&M (.htm)">
