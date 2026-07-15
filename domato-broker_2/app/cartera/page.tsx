@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { Bond, BondComputed } from "@/lib/types";
 import { computePortfolio, portfolioTotals, formatMoney } from "@/lib/calculations";
@@ -198,6 +199,12 @@ export default function CarteraPage() {
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           <CsvImport onImported={load} />
+          <Link
+            href="/precios"
+            className="rounded border border-ink-border px-4 py-2 text-sm text-paper hover:border-gold hover:text-gold transition-colors"
+          >
+            ⚙ Actualizar precios
+          </Link>
           <button
             onClick={actualizarPrecios}
             disabled={refreshing}
@@ -286,7 +293,7 @@ export default function CarteraPage() {
         <div className="w-px h-4 bg-ink-border hidden sm:block" />
         <div className="flex items-center gap-1.5 flex-wrap">
           <span className="text-muted font-medium mr-0.5">Tipo</span>
-          {([{ value: "todos", label: "Todos" }, { value: "bono", label: "Bono" }, { value: "accion", label: "Acción" }] as { value: TipoFiltro; label: string }[]).map(({ value, label }) => (
+          {([{ value: "todos", label: "Todos" }, { value: "bono", label: "Bono" }, { value: "accion", label: "Accion" }] as { value: TipoFiltro; label: string }[]).map(({ value, label }) => (
             <FilterChip key={value} active={tipoFiltro === value} label={label} count={value !== "todos" ? countTipo(value) : undefined} onClick={() => setTipoFiltro(value)} />
           ))}
         </div>
@@ -345,4 +352,4 @@ export default function CarteraPage() {
       )}
     </div>
   );
-        }
+}
