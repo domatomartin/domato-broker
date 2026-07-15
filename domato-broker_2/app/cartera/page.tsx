@@ -121,7 +121,7 @@ export default function CarteraPage() {
       if (!resp.ok) throw new Error(`Error al consultar BVM: ${resp.status}`);
       const precios: Record<string, { precio: number; cupon: number; fecha: string }> =
         await resp.json();
-      if ("error" in precios) throw new Error((precios as { error: string }).error);
+      if ("error" in precios) throw new Error((precios as unknown as { error: string }).error);
       let actualizados = 0;
       const sinPrecio: string[] = [];
       for (const bond of bonds) {
@@ -345,4 +345,4 @@ export default function CarteraPage() {
       )}
     </div>
   );
-}
+        }
