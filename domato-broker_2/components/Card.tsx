@@ -35,20 +35,20 @@ export function StatCard({
 
 export function Panel({
   title,
-  action,
   children,
+  action,
 }: {
   title: string;
-  action?: ReactNode;
   children: ReactNode;
+  action?: ReactNode;
 }) {
   return (
-    <div className="card-shadow rounded-2xl bg-ink-panel overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 sm:px-5 sm:py-4 border-b border-ink-border/50">
-        <h2 className="text-sm font-semibold text-paper">{title}</h2>
-        {action && <div>{action}</div>}
+    <div className="rounded-2xl bg-ink-panel p-5 sm:p-6 flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">{title}</h2>
+        {action}
       </div>
-      <div className="px-4 py-3 sm:px-5 sm:py-4">{children}</div>
+      {children}
     </div>
   );
 }
@@ -57,21 +57,21 @@ export function Badge({
   tone = "info",
   children,
 }: {
-  tone?: "critical" | "warning" | "info" | "gain";
+  tone?: "critical" | "warning" | "info" | "gain" | "loss";
   children: ReactNode;
 }) {
   return (
     <span
       className={clsx(
-        "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide shrink-0",
+        "inline-flex items-center px-2 py-0.5 rounded text-xs font-medium",
         tone === "critical" && "bg-loss/20 text-loss",
-        tone === "warning" && "bg-gold/20 text-gold",
+        tone === "warning" && "bg-amber-500/20 text-amber-400",
+        tone === "info" && "bg-gold/20 text-gold",
         tone === "gain" && "bg-gain/20 text-gain",
-        tone === "info" && "bg-paper/10 text-muted"
+        tone === "loss" && "bg-loss/20 text-loss"
       )}
     >
       {children}
     </span>
   );
-}
-fix(Card): restore Panel + Badge (gain/warning/critical/info) + clsx — PETECO OWNER
+          }
