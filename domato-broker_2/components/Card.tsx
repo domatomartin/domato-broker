@@ -57,7 +57,7 @@ export function Badge({
   tone = "info",
   children,
 }: {
-  tone?: "critical" | "warning" | "info";
+  tone?: "critical" | "warning" | "info" | "gain";
   children: ReactNode;
 }) {
   return (
@@ -66,6 +66,7 @@ export function Badge({
         "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide shrink-0",
         tone === "critical" && "bg-loss/20 text-loss",
         tone === "warning" && "bg-gold/20 text-gold",
+        tone === "gain" && "bg-gain/20 text-gain",
         tone === "info" && "bg-paper/10 text-muted"
       )}
     >
