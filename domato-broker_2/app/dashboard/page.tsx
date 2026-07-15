@@ -96,8 +96,8 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <StatCard
+<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+  <StatCard
             label="Valor total (eq. USD)"
             value={loading || valorTotalUSD === null ? "…" : formatMoney(valorTotalUSD, "USD")}
             tone="gold"
