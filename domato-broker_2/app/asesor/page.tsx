@@ -99,11 +99,18 @@ export default function AsesorPage() {
         buffer = lines.pop() ?? "";
 
         for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          const data = line.slice(6).trim();
-          if (data === "[DONE]") continue;
+          const trimmedLine = line.trim();
+          if (!trimmedLine) continue;
+
+          // Strip optional SSE "data: " prefix — Anthropic SDK omits it
+          const jsonStr = trimmedLine.startsWith("data: ")
+            ? trimmedLine.slice(6).trim()
+            : trimmedLine;
+
+          if (jsonStr === "[DONE]") continue;
+
           try {
-            const parsed = JSON.parse(data);
+            const parsed = JSON.parse(jsonStr);
             if (
               parsed.type === "content_block_delta" &&
               parsed.delta?.type === "text_delta"
