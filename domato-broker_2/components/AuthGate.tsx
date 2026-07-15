@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import { Session } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
+import { usePathname } from "next/navigation";
+import Link from "next/link";
+import { Bot } from "lucide-react";
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
 
@@ -12,6 +15,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [signingIn, setSigningIn] = useState(false);
+  const pathname = usePathname();
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
@@ -90,6 +94,8 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     );
   }
 
+  const showFAB = !pathname?.startsWith("/asesor");
+
   return (
     <div className="flex min-h-screen">
       <Sidebar />
@@ -97,6 +103,17 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
         <Topbar userEmail={session.user.email ?? undefined} />
         <main className="flex-1 min-w-0">{children}</main>
       </div>
+
+      {showFAB && (
+        <Link
+          href="/asesor"
+          title="Asesor Domato"
+          className="fixed bottom-6 right-6 z-50 rounded-full bg-gold text-ink shadow-lg flex items-center justify-center hover:bg-gold-bright transition-colors"
+          style={{ width: 52, height: 52 }}
+        >
+          <Bot size={22} strokeWidth={2} />
+        </Link>
+      )}
     </div>
   );
 }
