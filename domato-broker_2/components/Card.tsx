@@ -1,3 +1,6 @@
+import clsx from "clsx";
+import { ReactNode } from "react";
+
 export function StatCard({
   label,
   value,
@@ -27,5 +30,46 @@ export function StatCard({
       </p>
       {sub && <p className="text-xs text-muted mt-2 truncate">{sub}</p>}
     </div>
+  );
+}
+
+export function Panel({
+  title,
+  children,
+  action,
+}: {
+  title: string;
+  children: ReactNode;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="rounded-2xl bg-ink-panel p-5 sm:p-6 flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">{title}</h2>
+        {action}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+export function Badge({
+  tone = "info",
+  children,
+}: {
+  tone?: "critical" | "warning" | "info";
+  children: ReactNode;
+}) {
+  return (
+    <span
+      className={clsx(
+        "inline-flex items-center px-2 py-0.5 rounded text-xs font-medium",
+        tone === "critical" && "bg-loss/20 text-loss",
+        tone === "warning" && "bg-amber-500/20 text-amber-400",
+        tone === "info" && "bg-gold/20 text-gold"
+      )}
+    >
+      {children}
+    </span>
   );
 }
