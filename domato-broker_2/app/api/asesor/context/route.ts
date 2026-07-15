@@ -55,11 +55,10 @@ function fmtNum(n: number, dec = 2): string {
 // ── Route ──────────────────────────────────────────────────────────────────
 
 export async function GET() {
-  // Use service role key server-side so RLS doesn't block the read.
-  // Falls back to publishable key if service role is not configured.
+  // Service role key bypasses RLS — required for server-side reads
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
   // 1. Fetch bonds
@@ -73,9 +72,9 @@ export async function GET() {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // 2. Fetch FX rates from internal route
-  // In Vercel: VERCEL_URL is set automatically (no protocol). In dev: localhost.
-  let tasas: Tasas = { UYU_per_USD: 40.1, ARS_per_USD: 1485, UI_in_UYU: 6.6026 };
+  // 2. Fetch FX rates — VERCEL_URL is auto-injected by Vercel in production
+  const tasasFallback: Tasas = { UYU_per_USD: 40.1, ARS_per_USD: 1485, UI_in_UYU: 6.6026 };
+  let tasas: Tasas = tasasFallback;
   try {
     const baseUrl = process.env.VERCEL_URL
       ? `https://${process.env.VERCEL_URL}`
@@ -114,18 +113,12 @@ export async function GET() {
   const proximosCupones = (bonds as Bond[])
     .filter(b => b.proximo_pago_interes && b.cupon && b.cupon > 0)
     .map(b => {
+      const fecha = new Date(b.proximo_pago_interes!);
       const freq = b.frecuencia && b.frecuencia > 0 ? b.frecuencia : 2;
       const tasaPeriodo = (b.cupon! / 100) / freq;
       const cobro = tasaPeriodo * b.valor_nominal * b.cantidad;
       const cobroUSD = toUSD(cobro, b.moneda, tasas);
-      return {
-        nombre: b.nombre,
-        fecha: b.proximo_pago_interes!,
-        cobro,
-        cobroUSD,
-        moneda: b.moneda,
-        dias: daysUntil(b.proximo_pago_interes!),
-      };
+      return { nombre: b.nombre, fecha: b.proximo_pago_interes!, cobro, cobroUSD, moneda: b.moneda, dias: daysUntil(b.proximo_pago_interes!) };
     })
     .filter(c => c.dias >= 0 && new Date(c.fecha) <= limite)
     .sort((a, b) => a.dias - b.dias);
@@ -145,7 +138,7 @@ export async function GET() {
 
   ctx += `## TOTALES POR MONEDA\n`;
   for (const [moneda, t] of Object.entries(byMoneda)) {
-    ctx += `- ${moneda}: ${fmtNum(t.valorTotal, 0)} (≈ ${fmtUSD(t.usdTotal)})\n`;
+    ctx += `- ${moneda}: ${fmtNum(t.valorTotal, 0)} (≈ ${fmtUSD(t.usdTotal)} USD)\n`;
   }
   ctx += `\n`;
 
@@ -181,4 +174,4 @@ export async function GET() {
   ctx += `- 1 USD = ${fmtNum(tasas.ARS_per_USD, 0)} ARS\n`;
 
   return NextResponse.json({ context: ctx, bonds, totales: byMoneda, totalUSD, proximosCupones });
-    }
+}
