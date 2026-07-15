@@ -16,6 +16,7 @@ import {
   CalendarDays,
   UserCircle,
   Bot,
+  Tag,
 } from "lucide-react";
 
 const groups: {
@@ -33,7 +34,7 @@ const groups: {
     label: "Cartera",
     items: [
       { href: "/cartera", label: "Cartera", icon: Wallet },
-      { href: "/historico", label: "Histórico", icon: History },
+      { href: "/historico", label: "Historico", icon: History },
       { href: "/riesgo", label: "Riesgo", icon: ShieldAlert },
     ],
   },
@@ -42,6 +43,7 @@ const groups: {
     items: [
       { href: "/simulador", label: "Simulador", icon: FlaskConical },
       { href: "/calendario", label: "Calendario", icon: CalendarDays },
+      { href: "/precios", label: "Precios", icon: Tag },
     ],
   },
   {
@@ -83,7 +85,7 @@ export default function Sidebar() {
             Domato
           </p>
           <p className="text-[10px] tracking-[0.14em] text-sidebar-muted uppercase">
-            Gestión patrimonial
+            Gestion patrimonial
           </p>
         </div>
       </div>
