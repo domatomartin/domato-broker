@@ -12,12 +12,18 @@ import Link from "next/link";
 
 type Tasas = { UYU_per_USD: number; ARS_per_USD: number; UI_in_UYU: number; fetched_at: string };
 
-/** Convierte un valor en la moneda indicada a dólares usando las tasas */
 function toUSD(valor: number, moneda: string, tasas: Tasas): number {
   if (moneda === "UYU") return valor / tasas.UYU_per_USD;
   if (moneda === "UI") return (valor * tasas.UI_in_UYU) / tasas.UYU_per_USD;
   if (moneda === "ARS") return valor / tasas.ARS_per_USD;
-  return valor; // USD u otras — sin conversión
+  return valor;
+}
+
+function getGreeting(): string {
+  const h = new Date().getHours();
+  if (h < 12) return "Buenos días";
+  if (h < 19) return "Buenas tardes";
+  return "Buenas noches";
 }
 
 export default function DashboardPage() {
@@ -26,8 +32,22 @@ export default function DashboardPage() {
   const [ticker, setTicker] = useState<TickerItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [tasas, setTasas] = useState<Tasas | null>(null);
+  const [greeting, setGreeting] = useState("Buenos días");
+  const [userName, setUserName] = useState("Martín");
 
   useEffect(() => {
+    setGreeting(getGreeting());
+
+    supabase.auth.getSession().then(({ data }) => {
+      const meta = data.session?.user?.user_metadata;
+      if (meta?.name) {
+        setUserName(meta.name.split(" ")[0]);
+      } else if (data.session?.user?.email) {
+        const local = data.session.user.email.split("@")[0];
+        setUserName(local.charAt(0).toUpperCase() + local.slice(1));
+      }
+    });
+
     async function load() {
       const [{ data: bondsData }, { data: snapData }] = await Promise.all([
         supabase.from("bonds").select("*").eq("estado", "activo"),
@@ -53,7 +73,6 @@ export default function DashboardPage() {
   const computed = computePortfolio(bonds);
   const totalsPerCurrency = portfolioTotals(computed);
 
-  // Convertir cada moneda a USD antes de sumar
   const valorTotalUSD = tasas
     ? Object.entries(totalsPerCurrency).reduce((s, [m, t]) => s + toUSD(t.valorTotal, m, tasas), 0)
     : null;
@@ -90,14 +109,16 @@ export default function DashboardPage() {
 
       <div className="p-6 md:p-8 flex flex-col gap-6">
         <div>
-          <h1 className="font-display text-3xl text-paper">Buenos días, Martín</h1>
+          <h1 className="font-display text-3xl text-paper">
+            {greeting}, {userName}
+          </h1>
           <p className="text-sm text-muted mt-1">
             Esto es lo que cambió en tu patrimonio desde ayer.
           </p>
         </div>
 
-<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-  <StatCard
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+          <StatCard
             label="Valor total (eq. USD)"
             value={loading || valorTotalUSD === null ? "…" : formatMoney(valorTotalUSD, "USD")}
             tone="gold"
@@ -149,10 +170,14 @@ export default function DashboardPage() {
               }))}
             />
           ) : (
-            <p className="text-sm text-muted py-8 text-center">
-              Todavía no hay historial. Se genera automáticamente cada día a
-              partir de tu cartera cargada.
-            </p>
+            <div className="py-8 text-center flex flex-col items-center gap-3">
+              <p className="text-sm text-muted">
+                Todavía no hay historial. Se genera automáticamente cada día a partir de tu cartera cargada.
+              </p>
+              <Link href="/cartera" className="text-xs text-gold hover:underline">
+                Ir a cartera →
+              </Link>
+            </div>
           )}
         </Panel>
 
