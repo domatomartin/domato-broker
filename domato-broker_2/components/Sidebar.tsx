@@ -15,6 +15,7 @@ import {
   Newspaper,
   CalendarDays,
   UserCircle,
+  Bot,
 } from "lucide-react";
 
 const groups: {
@@ -41,6 +42,12 @@ const groups: {
     items: [
       { href: "/simulador", label: "Simulador", icon: FlaskConical },
       { href: "/calendario", label: "Calendario", icon: CalendarDays },
+    ],
+  },
+  {
+    label: "Asistente",
+    items: [
+      { href: "/asesor", label: "Asesor Domato", icon: Bot },
     ],
   },
   {
