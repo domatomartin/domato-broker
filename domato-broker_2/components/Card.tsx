@@ -74,3 +74,4 @@ export function Badge({
     </span>
   );
 }
+fix(Card): restore Panel + Badge (gain/warning/critical/info) + clsx — PETECO OWNER
