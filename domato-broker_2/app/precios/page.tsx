@@ -16,8 +16,8 @@ function timeSince(dateStr: string | null | undefined): { label: string; color: 
   return { label: `hace ${days}d`, color: "text-loss" };
 }
 
-function TipoBadge({ bond }: { bond: Bond & { tipo?: string } }) {
-  if (bond.tipo === "accion") {
+function TipoBadge({ bond }: { bond: Bond & { asset_type?: string } }) {
+  if (bond.asset_type === "accion") {
     return (
       <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-gold/20 text-gold">
         Accion
@@ -145,7 +145,7 @@ function NotasCell({
 }
 
 type ExtBond = Bond & {
-  tipo?: string;
+  asset_type?: string;
   precio_updated_at?: string;
   notas?: string;
   dividendo?: number;
@@ -249,8 +249,8 @@ export default function PreciosPage() {
     load();
   }, []);
 
-  const acciones = bonds.filter((b) => b.tipo === "accion");
-  const bonos = bonds.filter((b) => b.tipo !== "accion");
+  const acciones = bonds.filter((b) => b.asset_type === "accion");
+  const bonos = bonds.filter((b) => b.asset_type !== "accion");
 
   return (
     <div className="p-6 md:p-8 flex flex-col gap-8">
