@@ -33,6 +33,7 @@ export type BondComputed = Bond & {
   valor_mercado: number;
   ganancia: number;
   rentabilidad_pct: number;
+  interes_corrido?: number | null;
 };
 
 export type PatrimonioSnapshot = {
