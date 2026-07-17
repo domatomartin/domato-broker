@@ -61,6 +61,16 @@ export async function GET() {
   const ganancia = totalUSD - totalCostoUSD;
   const rent = totalCostoUSD > 0 ? (ganancia/totalCostoUSD)*100 : 0;
 
+  // #22 — Concentración: bonos >15% del total
+  const concentrados = (bonds as Bond[])
+    .map(b => {
+      const vU = toUSD(calcVM(b), b.moneda, tasas);
+      const pct = totalUSD > 0 ? (vU / totalUSD) * 100 : 0;
+      return { nombre: b.nombre, pct };
+    })
+    .filter(x => x.pct > 15)
+    .sort((a, b) => b.pct - a.pct);
+
   const limite = new Date(Date.now() + 90*86400000);
   const proxCupones = (bonds as Bond[])
     .filter(b => b.proximo_pago_interes && b.cupon && b.cupon > 0)
@@ -76,14 +86,22 @@ export async function GET() {
   const hoy = new Date();
   const hoyStr = hoy.toLocaleDateString("es-UY",{day:"2-digit",month:"long",year:"numeric"});
   let ctx = `=== CONTEXTO DE CARTERA — ${hoyStr} ===\n\n`;
+
+  // #22 — Alertas de concentración al inicio
+  for (const c of concentrados)
+    ctx += `⚠️ CONCENTRACIÓN: ${c.nombre} = ${fmtN(c.pct)}% del portafolio\n`;
+  if (concentrados.length > 0) ctx += `\n`;
+
   ctx += `## RESUMEN GENERAL\n`;
   ctx += `- Total (equiv. USD): ${fmtUSD(totalUSD)}\n`;
   ctx += `- Costo adquisición: ${fmtUSD(totalCostoUSD)}\n`;
   ctx += `- Ganancia/Pérdida: ${fmtUSD(ganancia)} (${ganancia>=0?"+":""}${fmtN(rent)}%)\n`;
   ctx += `- Instrumentos activos: ${(bonds as Bond[]).length}\n\n`;
+
   ctx += `## TOTALES POR MONEDA\n`;
   for (const [mon,t] of Object.entries(byMoneda))
     ctx += `- ${mon}: ${fmtN(t.valorTotal,0)} (≈ ${fmtUSD(t.usdTotal)})\n`;
+
   ctx += `\n## INSTRUMENTOS EN CARTERA\n`;
   for (const b of bonds as Bond[]) {
     const vU = toUSD(calcVM(b),b.moneda,tasas);
@@ -98,11 +116,21 @@ export async function GET() {
     if (b.proximo_vencimiento) ctx += ` | vto:${b.proximo_vencimiento}`;
     ctx += `\n`;
   }
+
   if (proxCupones.length>0) {
     ctx += `\n## PRÓXIMOS CUPONES 90d — ${fmtUSD(totalCup90)}\n`;
     for (const c of proxCupones)
       ctx += `- ${c.fecha} (+${c.dias}d): ${c.nombre} ${fmtN(c.cobro,0)} ${c.moneda} (${fmtUSD(c.cobroUSD)})\n`;
   }
+
   ctx += `\n## TASAS: 1 USD=${fmtN(tasas.UYU_per_USD)}UYU | 1 UI=${fmtN(tasas.UI_in_UYU)}UYU | 1 USD=${fmtN(tasas.ARS_per_USD,0)}ARS\n`;
+
+  // #21 — Exposición por moneda al final
+  ctx += `\n## EXPOSICIÓN POR MONEDA\n`;
+  ctx += Object.entries(byMoneda)
+    .sort((a,b) => b[1].usdTotal - a[1].usdTotal)
+    .map(([mon,t]) => `${mon} ${fmtUSD(t.usdTotal)} (${fmtN(totalUSD>0?t.usdTotal/totalUSD*100:0,0)}%)`)
+    .join(' | ') + '\n';
+
   return NextResponse.json({ context:ctx, bonds, totales:byMoneda, totalUSD, proximosCupones:proxCupones });
-}
+           }
