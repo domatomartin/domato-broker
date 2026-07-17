@@ -8,6 +8,7 @@ import Link from "next/link";
 import { Bot } from "lucide-react";
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
+import BottomNav from "./BottomNav";
 
 export default function AuthGate({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null | "loading">("loading");
