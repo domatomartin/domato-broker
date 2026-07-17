@@ -1,96 +1,64 @@
-import Anthropic from '@anthropic-ai/sdk'
-import { NextRequest, NextResponse } from 'next/server'
+import Anthropic from "@anthropic-ai/sdk";
+import { NextRequest } from "next/server";
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+export const dynamic = "force-dynamic";
 
-async function getPortfolioContext(req: NextRequest): Promise<string> {
-  try {
-    const baseUrl = process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : 'http://localhost:3000'
-
-    const contextResp = await fetch(`${baseUrl}/api/asesor/context`, {
-      headers: { cookie: req.headers.get('cookie') ?? '' },
-    })
-
-    if (!contextResp.ok) return ''
-    return await contextResp.text()
-  } catch {
-    return ''
-  }
-}
-
-function buildSystemPrompt(portfolioContext: string): string {
-  const base = `Sos Domato Asesor, el asistente financiero personal de esta plataforma. Respondés en español rioplatense, de forma concisa y directa.
-
-Capacidades:
-- Analizás la cartera de bonos y acciones del cliente
-- Explicás métricas financieras (TIR, precio sucio/limpio, interés corrido, duración)
-- Alertás sobre riesgos de concentración, vencimientos próximos y variaciones de precio
-- Cuando un bono cotiza muy lejos de la par, lo mencionás proactivamente
-- Si hay alertas de concentración en el contexto, las nombrás
-
-Reglas:
-- Citás datos concretos del contexto (precio, TIR, vencimiento)
-- Nunca inventás precios ni rendimientos
-- Si no tenés la información en el contexto, lo decís
-- Vas al punto, sin introducción larga`
-
-  if (!portfolioContext) return base
-
-  return `${base}
-
----
-CONTEXTO ACTUAL DEL PORTAFOLIO:
-${portfolioContext}
----`
-}
+const client = new Anthropic();
 
 export async function POST(req: NextRequest) {
+  const { messages } = await req.json() as {
+    messages: { role: "user" | "assistant"; content: string }[];
+  };
+
+  // Fetch portfolio context from /api/asesor/context
+  let contextText = "";
   try {
-    const { messages } = await req.json()
-
-    if (!messages?.length) {
-      return NextResponse.json({ error: 'messages requeridos' }, { status: 400 })
+    const host = req.headers.get("host") ?? "";
+    const proto = host.startsWith("localhost") ? "http" : "https";
+    const ctxResp = await fetch(`${proto}://${host}/api/asesor/context`, {
+      headers: { cookie: req.headers.get("cookie") ?? "" },
+    });
+    if (ctxResp.ok) {
+      const ctx = await ctxResp.json();
+      contextText =
+        typeof ctx === "string"
+          ? ctx
+          : (ctx.context ?? ctx.text ?? JSON.stringify(ctx, null, 2));
     }
-
-    const portfolioContext = await getPortfolioContext(req)
-    const systemPrompt = buildSystemPrompt(portfolioContext)
-
-    const stream = await anthropic.messages.stream({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1024,
-      system: systemPrompt,
-      messages,
-    })
-
-    const readable = new ReadableStream({
-      async start(controller) {
-        const encoder = new TextEncoder()
-        for await (const chunk of stream) {
-          if (
-            chunk.type === 'content_block_delta' &&
-            chunk.delta.type === 'text_delta'
-          ) {
-            controller.enqueue(
-              encoder.encode(`data: ${JSON.stringify({ text: chunk.delta.text })}\n\n`)
-            )
-          }
-        }
-        controller.enqueue(encoder.encode('data: [DONE]\n\n'))
-        controller.close()
-      },
-    })
-
-    return new Response(readable, {
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        Connection: 'keep-alive',
-      },
-    })
-  } catch (err) {
-    console.error('[asesor/chat]', err)
-    return NextResponse.json({ error: 'Error interno' }, { status: 500 })
+  } catch (e) {
+    console.error("[asesor/chat] context fetch failed:", e);
   }
-}
+
+  const systemPrompt = [
+    "Sos Mingo, asesor financiero especializado en mercados de Uruguay (BVM, BEVSA) y Argentina.",
+    "Gestionás carteras de bonos y acciones en BCE&M Operadores (Bolsa de Valores de Montevideo).",
+    "",
+    "REGLAS:",
+    "- Respondé siempre en español rioplatense, directo y profesional.",
+    "- Citá datos concretos del contexto: precio actual, TIR, vencimiento, valor de mercado en USD.",
+    "- Si hay líneas ⚠️ CONCENTRACIÓN en el contexto, mencioná el riesgo de concentración en tu análisis.",
+    "- Bono 'sobre la par' (>100.5%): el inversor paga prima, TIR real < cupón — señalalo.",
+    "- Bono 'bajo la par' (<99.5%): hay descuento, TIR real > cupón — puede ser oportunidad.",
+    "- Si los datos son insuficientes para una recomendación firme, indicalo claramente.",
+    "- Usá markdown (negritas, listas) para estructurar respuestas largas.",
+    "- Nunca inventes datos que no estén en el contexto.",
+    "",
+    "=== ESTADO ACTUAL DE LA CARTERA ===",
+    contextText || "No se pudo obtener el contexto de la cartera en este momento.",
+  ].join("\n");
+
+  const stream = client.messages.stream({
+    model: "claude-haiku-4-5-20251001",
+    max_tokens: 2048,
+    system: systemPrompt,
+    messages,
+  });
+
+  return new Response(stream.toReadableStream(), {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      "X-Accel-Buffering": "no",
+    },
+  });
+        }
