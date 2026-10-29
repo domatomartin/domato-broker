@@ -215,6 +215,11 @@ export default function PropuestaPage() {
               Marcar presentada
             </button>
           )}
+          {!ejecutada && prop.estado !== "descartada" && (
+            <button type="button" onClick={() => guardar({ estado: "descartada" })} className="rounded px-3 py-2 text-sm text-muted hover:text-loss">
+              Descartar
+            </button>
+          )}
           {!ejecutada && (
             <button type="button" onClick={async () => { if (sucio && !(await guardar())) return; setEjecutando(true); }} disabled={!metricas.lineas.length || !pesoOk} className="rounded bg-gold px-4 py-2 text-sm font-medium text-ink-panel hover:bg-gold-bright disabled:opacity-50">
               Ejecutar compra

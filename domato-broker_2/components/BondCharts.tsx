@@ -5,7 +5,7 @@ import { cobrosAcumulados, sensibilidad, type AnalisisBono } from "@/lib/bondMat
 const ISO = ["USD", "UYU", "ARS", "EUR", "BRL", "COP"];
 
 function monto(v: number, moneda: string | null) {
-  if (!moneda) return v.toLocaleString("es-UY", { maximumFractionDigits: 1 });
+  if (!moneda) return v.toLocaleString("es-UY", { maximumFractionDigits: Math.abs(v) >= 1000 ? 0 : 1 });
   if (ISO.includes(moneda)) {
     return new Intl.NumberFormat("es-UY", { style: "currency", currency: moneda, maximumFractionDigits: 0 }).format(v);
   }
