@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
 import { supabase } from "@/lib/supabase";
 import { Panel } from "@/components/Card";
-import BondAnalysis, { fmtFecha, fmtMonto, fmtNum } from "@/components/BondAnalysis";
+import BondAnalysis, { AVISO_SIMULACION, fmtFecha, fmtMonto, fmtNum } from "@/components/BondAnalysis";
 import CatalogoBvmSync from "@/components/CatalogoBvmSync";
 import { analizarBono, escalar, nominalParaMonto, type AnalisisBono } from "@/lib/bondMath";
 import { efectivo, type Instrumento } from "@/lib/bvm";
@@ -213,67 +213,24 @@ export default function OpcionesPage() {
             </p>
           )}
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead className="text-muted">
-                <tr>
-                  <th className="text-left px-2 py-1.5"></th>
-                  {seleccionadas.map((f) => (
-                    <th key={f.i.isin} className="text-left px-2 py-1.5 min-w-[150px] text-paper font-semibold">
-                      {f.i.nombre}
-                      <span className="block font-normal text-muted">{f.i.isin} · {f.i.moneda}</span>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {([
-                  ["Precio", (f: Fila) => fmtNum(efectivo(f.i).precio, 2)],
-                  ["Cupón anual", (f: Fila) => fmtNum(efectivo(f.i).cupon, 3, "%")],
-                  ["Vencimiento", (f: Fila) => fmtFecha(efectivo(f.i).vencimiento)],
-                  ["TIR al día", (f: Fila) => fmtNum(f.a.tir, 2, "%")],
-                  ["Rendimiento corriente", (f: Fila) => (efectivo(f.i).letra ? "— (letra)" : fmtNum(f.a.currentYield, 2, "%"))],
-                  ["Duration", (f: Fila) => fmtNum(f.a.duration, 2, " años")],
-                  ["Duration modificada", (f: Fila) => fmtNum(f.a.durationModificada, 2)],
-                  ["Interés corrido", (f: Fila) => fmtNum(f.a.interesCorrido, 4)],
-                  ["Próximo cupón", (f: Fila) => fmtFecha(f.a.proximoCupon)],
-                  ["Valor nominal que compra", (f: Fila) => (f.a.completo ? fmtNum(nominalParaMonto(f.a, montoNum), 0) : "—")],
-                  ["Interés anual", (f: Fila) => (f.a.completo ? fmtMonto(escalar(f.a, nominalParaMonto(f.a, montoNum)).interesAnual, f.i.moneda) : "—")],
-                  ["Intereses futuros", (f: Fila) => (f.a.completo ? fmtMonto(escalar(f.a, nominalParaMonto(f.a, montoNum)).totalIntereses, f.i.moneda) : "—")],
-                  ["Total a cobrar", (f: Fila) => (f.a.completo ? fmtMonto(escalar(f.a, nominalParaMonto(f.a, montoNum)).totalACobrar, f.i.moneda) : "—")],
-                  ["Ganancia al vencimiento", (f: Fila) => (f.a.completo ? `${fmtMonto(escalar(f.a, nominalParaMonto(f.a, montoNum)).ganancia, f.i.moneda)} (${fmtNum(f.a.gananciaAlVencimiento, 1, "%")})` : "—")],
-                ] as [string, (f: Fila) => string][]).map(([label, fn]) => (
-                  <tr key={label} className="border-t border-ink-border/60">
-                    <td className="px-2 py-1.5 text-muted whitespace-nowrap">{label}</td>
-                    {seleccionadas.map((f) => (
-                      <td key={f.i.isin} className={clsx("px-2 py-1.5 font-mono", label === "TIR al día" && "text-gain font-semibold")}>{fn(f)}</td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="grid gap-4 lg:grid-cols-2 print:hidden">
-            {seleccionadas.map((f) => {
+          {seleccionadas.length === 1 ? (
+            (() => {
+              const f = seleccionadas[0];
               const e = efectivo(f.i);
               return (
-                <div key={f.i.isin} className="rounded-xl border border-ink-border p-3 flex flex-col gap-2">
-                  <p className="text-sm font-semibold text-paper">{f.i.nombre} <span className="font-normal text-muted">· {f.i.moneda}</span></p>
-                  <BondAnalysis
-                    datos={{ cupon: e.cupon, frecuencia: e.frecuencia, vencimiento: e.vencimiento, precio: e.precio }}
-                    analisis={f.a}
-                    moneda={f.i.moneda}
-                    valorNominal={f.a.completo ? nominalParaMonto(f.a, montoNum) : undefined}
-                  />
-                </div>
+                <BondAnalysis
+                  titulo={f.i.nombre}
+                  subtitulo={`${f.i.isin} · ${f.i.moneda}${f.i.especie ? ` · ${f.i.especie}` : ""}`}
+                  datos={{ cupon: e.cupon, frecuencia: e.frecuencia, vencimiento: e.vencimiento, precio: e.precio }}
+                  analisis={f.a}
+                  moneda={f.i.moneda}
+                  valorNominal={f.a.completo ? nominalParaMonto(f.a, montoNum) : undefined}
+                />
               );
-            })}
-          </div>
-          <p className="text-[10px] text-muted">
-            Precios del vector BCU/BVM. Simulación con cupón fijo y amortización al vencimiento; los bonos que amortizan en cuotas tienen TIR aproximada.
-            Valores orientativos, no constituyen asesoramiento ni oferta de inversión.
-          </p>
+            })()
+          ) : (
+            <TablaComparacion filas={seleccionadas} monto={montoNum} />
+          )}
         </Panel>
       )}
 
@@ -398,5 +355,130 @@ function FilaTabla({
         </tr>
       )}
     </>
+  );
+}
+
+function TablaComparacion({ filas, monto }: { filas: Fila[]; monto: number }) {
+  const [detalle, setDetalle] = useState<string | null>(null);
+  const datos = filas.map((f) => {
+    const e = efectivo(f.i);
+    const m = f.a.completo ? escalar(f.a, nominalParaMonto(f.a, monto)) : null;
+    return { f, e, m };
+  });
+  const mejorTir = Math.max(...datos.map((d) => d.f.a.tir ?? -Infinity));
+  const mejorGanancia = Math.max(...datos.map((d) => d.m?.ganancia ?? -Infinity));
+
+  type Fila_ = { label: string; valor: (d: (typeof datos)[number]) => string; destacar?: (d: (typeof datos)[number]) => boolean };
+  const secciones: { titulo: string; filas: Fila_[] }[] = [
+    {
+      titulo: "Rendimiento",
+      filas: [
+        { label: "TIR al día", valor: (d) => fmtNum(d.f.a.tir, 2, "%"), destacar: (d) => d.f.a.tir === mejorTir },
+        { label: "Rendimiento corriente", valor: (d) => (d.e.letra ? "—" : fmtNum(d.f.a.currentYield, 2, "%")) },
+        { label: "Cupón anual", valor: (d) => (d.e.letra ? "Letra (sin cupón)" : fmtNum(d.e.cupon, 3, "%")) },
+      ],
+    },
+    {
+      titulo: `Si invertís ${fmtNum(monto, 0)}`,
+      filas: [
+        { label: "Interés por año", valor: (d) => (d.m ? fmtMonto(d.m.interesAnual, d.f.i.moneda) : "—") },
+        { label: "Intereses futuros", valor: (d) => (d.m ? fmtMonto(d.m.totalIntereses, d.f.i.moneda) : "—") },
+        { label: "Total a cobrar", valor: (d) => (d.m ? fmtMonto(d.m.totalACobrar, d.f.i.moneda) : "—") },
+        {
+          label: "Ganancia al vencimiento",
+          valor: (d) => (d.m ? `${fmtMonto(d.m.ganancia, d.f.i.moneda)} (+${fmtNum(d.f.a.gananciaAlVencimiento, 1, "%")})` : "—"),
+          destacar: (d) => d.m?.ganancia === mejorGanancia,
+        },
+      ],
+    },
+    {
+      titulo: "Plazo y riesgo",
+      filas: [
+        { label: "Vencimiento", valor: (d) => fmtFecha(d.e.vencimiento) },
+        { label: "Plazo", valor: (d) => fmtNum(d.f.a.aniosAlVencimiento, 1, " años") },
+        { label: "Duration", valor: (d) => fmtNum(d.f.a.duration, 2, " años") },
+        { label: "Si la tasa sube 1 punto", valor: (d) => (d.f.a.durationModificada != null ? `−${fmtNum(d.f.a.durationModificada, 1, "%")}` : "—") },
+      ],
+    },
+    {
+      titulo: "Precio",
+      filas: [
+        { label: "Precio limpio", valor: (d) => fmtNum(d.e.precio, 2) },
+        { label: "Próximo cupón", valor: (d) => fmtFecha(d.f.a.proximoCupon) },
+      ],
+    },
+  ];
+
+  const abierta = datos.find((d) => d.f.i.isin === detalle);
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="overflow-x-auto -mx-1">
+        <table className="w-full text-sm tabular-nums">
+          <thead>
+            <tr>
+              <th className="w-44"></th>
+              {datos.map(({ f }) => (
+                <th key={f.i.isin} className="px-3 pb-3 text-left align-bottom min-w-[170px]">
+                  <span className="block text-sm font-semibold text-paper leading-snug">{f.i.nombre}</span>
+                  <span className="block text-[11px] font-normal text-muted">{f.i.moneda} · {f.i.isin}</span>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          {secciones.map((sec) => (
+            <tbody key={sec.titulo}>
+              <tr>
+                <td colSpan={datos.length + 1} className="pt-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-muted">{sec.titulo}</td>
+              </tr>
+              {sec.filas.map((fila) => (
+                <tr key={fila.label} className="border-t border-ink-border/60">
+                  <td className="py-1.5 pr-3 text-xs text-muted">{fila.label}</td>
+                  {datos.map((d) => (
+                    <td
+                      key={d.f.i.isin}
+                      className={clsx(
+                        "px-3 py-1.5 whitespace-nowrap",
+                        fila.destacar?.(d) && datos.length > 1 ? "font-semibold text-gain" : "text-paper"
+                      )}
+                    >
+                      {fila.valor(d)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          ))}
+          <tbody className="print:hidden">
+            <tr>
+              <td></td>
+              {datos.map(({ f }) => (
+                <td key={f.i.isin} className="px-3 pt-3">
+                  <button type="button" onClick={() => setDetalle(detalle === f.i.isin ? null : f.i.isin)} className="text-[11px] text-muted underline hover:text-paper">
+                    {detalle === f.i.isin ? "Cerrar ficha" : "Ver ficha completa"}
+                  </button>
+                </td>
+              ))}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      {abierta && (
+        <div className="rounded-xl border border-ink-border p-4 print:hidden">
+          <BondAnalysis
+            titulo={abierta.f.i.nombre}
+            subtitulo={`${abierta.f.i.isin} · ${abierta.f.i.moneda}`}
+            datos={{ cupon: abierta.e.cupon, frecuencia: abierta.e.frecuencia, vencimiento: abierta.e.vencimiento, precio: abierta.e.precio }}
+            analisis={abierta.f.a}
+            moneda={abierta.f.i.moneda}
+            valorNominal={abierta.f.a.completo ? nominalParaMonto(abierta.f.a, monto) : undefined}
+            mostrarAviso={false}
+          />
+        </div>
+      )}
+
+      <p className="text-[10px] text-muted">{AVISO_SIMULACION}</p>
+    </div>
   );
 }
