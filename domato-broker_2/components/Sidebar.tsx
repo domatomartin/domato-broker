@@ -17,6 +17,7 @@ import {
   UserCircle,
   Bot,
   Tag,
+  Landmark,
 } from "lucide-react";
 
 const groups: {
@@ -34,6 +35,7 @@ const groups: {
     label: "Cartera",
     items: [
       { href: "/cartera", label: "Cartera", icon: Wallet },
+      { href: "/opciones", label: "Opciones de inversión", icon: Landmark },
       { href: "/historico", label: "Historico", icon: History },
       { href: "/riesgo", label: "Riesgo", icon: ShieldAlert },
     ],
@@ -73,7 +75,7 @@ export default function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="w-64 shrink-0 bg-sidebar px-4 py-6 hidden md:flex md:flex-col">
+    <aside className="w-64 shrink-0 bg-sidebar px-4 py-6 hidden md:flex md:flex-col print:!hidden">
       <div className="flex items-center gap-2.5 px-2 mb-6">
         <img
           src="/logo.jpg"

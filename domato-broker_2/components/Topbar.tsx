@@ -7,7 +7,7 @@ export default function Topbar({ userEmail }: { userEmail?: string }) {
   const initials = userEmail ? userEmail.slice(0, 2).toUpperCase() : "MP";
 
   return (
-    <header className="h-16 shrink-0 border-b border-ink-border bg-ink-panel px-6 flex items-center justify-between gap-4">
+    <header className="print:hidden h-16 shrink-0 border-b border-ink-border bg-ink-panel px-6 flex items-center justify-between gap-4">
       <div className="flex items-center gap-2 text-muted max-w-sm w-full">
         <Search size={16} />
         <input

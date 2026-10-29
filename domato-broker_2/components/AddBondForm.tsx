@@ -3,8 +3,10 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { CARTERAS_BASE, carteraLabel } from "@/lib/carteras";
-import type { InstrumentoBvm } from "@/lib/bvm";
+import { efectivo, type Instrumento } from "@/lib/bvm";
 import CatalogoBvmSync from "@/components/CatalogoBvmSync";
+import BondAnalysis from "@/components/BondAnalysis";
+import { analizarBono } from "@/lib/bondMath";
 
 const NUEVA_CARTERA = "__nueva__";
 
@@ -43,16 +45,16 @@ export default function AddBondForm({
   const [values, setValues] = useState<Record<string, string>>({ frecuencia: "2" });
   const [cartera, setCartera] = useState<string>(carteraInicial ?? carteras[0] ?? NUEVA_CARTERA);
   const [nuevaCartera, setNuevaCartera] = useState("");
-  const [catalogo, setCatalogo] = useState<InstrumentoBvm[]>([]);
+  const [catalogo, setCatalogo] = useState<Instrumento[]>([]);
   const [busqueda, setBusqueda] = useState("");
   const [elegido, setElegido] = useState<string | null>(null);
 
   async function cargarCatalogo() {
     const { data } = await supabase
       .from("instrumentos")
-      .select("isin, codigo, nombre, especie, moneda, cupon, vencimiento, precio, cupon_corrido, fecha_precio")
+      .select("*")
       .order("nombre");
-    setCatalogo((data as InstrumentoBvm[]) ?? []);
+    setCatalogo((data as Instrumento[]) ?? []);
   }
 
   useEffect(() => { cargarCatalogo(); }, []);
@@ -66,24 +68,45 @@ export default function AddBondForm({
         )
         .slice(0, 10);
 
-  function elegir(i: InstrumentoBvm) {
+  function elegir(i: Instrumento) {
+    const e = efectivo(i);
     setValues((v) => ({
       ...v,
       nombre: i.nombre,
       codigo: i.codigo ?? "",
       isin: i.isin,
       moneda: i.moneda,
-      cupon: i.cupon != null ? String(i.cupon) : "",
-      proximo_vencimiento: i.vencimiento ?? "",
+      cupon: e.cupon != null ? String(e.cupon) : "",
+      proximo_vencimiento: e.vencimiento ?? "",
       precio_actual: i.precio != null ? String(i.precio) : "",
       precio_compra: v.precio_compra || (i.precio != null ? String(i.precio) : ""),
       cantidad: v.cantidad || "1",
+      frecuencia: String(e.frecuencia),
     }));
     setElegido(i.isin);
     setBusqueda("");
   }
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const datosSimulacion = {
+    cupon: values.cupon ? Number(values.cupon) : null,
+    frecuencia: values.frecuencia ? Number(values.frecuencia) : 2,
+    vencimiento: values.proximo_vencimiento || null,
+    precio: Number(values.precio_compra || values.precio_actual || 0) || null,
+  };
+  const nominalSimulacion = Number(values.valor_nominal || 0) * Number(values.cantidad || 1);
+
+  // TIR y riesgo al precio actual, para Riesgo y el detalle del bono.
+  function metricas() {
+    const a = analizarBono({ ...datosSimulacion, precio: Number(values.precio_actual || values.precio_compra || 0) || null });
+    return {
+      tir: a.completo ? a.tir : null,
+      duration: a.completo ? a.duration : null,
+      duration_modificada: a.completo ? a.durationModificada : null,
+      convexidad: a.completo ? a.convexidad : null,
+    };
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -114,6 +137,7 @@ export default function AddBondForm({
       corredor: values.corredor || null,
       cuenta,
       estado: "activo",
+      ...metricas(),
     };
 
     const { error } = await supabase.from("bonds").insert(payload);
@@ -156,8 +180,8 @@ export default function AddBondForm({
                       <span className="text-sm text-paper">{i.nombre}</span>
                       <span className="text-[11px] text-muted">
                         {i.isin} · {i.moneda}
-                        {i.cupon != null && ` · ${i.cupon}%`}
-                        {i.vencimiento && ` · vence ${i.vencimiento}`}
+                        {efectivo(i).cupon != null && ` · ${efectivo(i).cupon}%`}
+                        {efectivo(i).vencimiento && ` · vence ${efectivo(i).vencimiento}`}
                         {i.precio != null && ` · precio ${i.precio}`}
                         {i.especie && ` · ${i.especie}`}
                       </span>
@@ -232,6 +256,15 @@ export default function AddBondForm({
           ))}
         </select>
       </label>
+
+      <div className="col-span-full flex flex-col gap-2 rounded border border-ink-border/60 p-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted">Simulación de la compra (al precio de compra, hoy)</p>
+        <BondAnalysis
+          datos={datosSimulacion}
+          moneda={values.moneda || "USD"}
+          valorNominal={nominalSimulacion > 0 ? nominalSimulacion : undefined}
+        />
+      </div>
 
       <div className="col-span-full flex items-center gap-3 pt-2">
         <button

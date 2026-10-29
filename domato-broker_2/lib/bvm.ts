@@ -169,3 +169,22 @@ export function parseVector(html: string, especie: string | null): InstrumentoBv
   }
   return out;
 }
+
+/** Columnas que completa el usuario; la sincronización con la BVM nunca las pisa. */
+export type DatosManuales = {
+  cupon_manual?: number | null;
+  vencimiento_manual?: string | null;
+  frecuencia?: number | null; // pagos por año; la BVM no lo publica
+};
+
+export type Instrumento = InstrumentoBvm & DatosManuales & { updated_at?: string };
+
+/** Datos a usar: lo cargado a mano gana sobre lo que trae la BVM. */
+export function efectivo(i: Instrumento) {
+  return {
+    cupon: i.cupon_manual ?? i.cupon,
+    vencimiento: i.vencimiento_manual ?? i.vencimiento,
+    frecuencia: i.frecuencia ?? 2,
+    frecuenciaSupuesta: i.frecuencia == null,
+  };
+}

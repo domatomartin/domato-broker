@@ -14,6 +14,10 @@ create table if not exists instrumentos (
   fecha_precio date,
   updated_at timestamptz not null default now()
 );
+-- Datos que completa el usuario (la sincronización con la BVM no los pisa).
+alter table instrumentos add column if not exists cupon_manual numeric;
+alter table instrumentos add column if not exists vencimiento_manual date;
+alter table instrumentos add column if not exists frecuencia integer;
 alter table instrumentos enable row level security;
 drop policy if exists "authenticated only instrumentos" on instrumentos;
 create policy "authenticated only instrumentos" on instrumentos
