@@ -18,7 +18,7 @@ import { useCostos } from "@/lib/useCostos";
 import type { Instrumento } from "@/lib/bvm";
 import {
   ESTADOS, OBJETIVOS, PERFIL_DEFECTO, RIESGOS,
-  calcularCartera, candidatosPara, itemDesdeInstrumento, metricasParaGuardar, monedasCompatibles,
+  calcularCartera, candidatosPara, itemDesdeInstrumento, metricasParaGuardar, monedasCompatibles, tiposParaPerfil,
   type EjecucionItem, type ItemPropuesta, type PerfilCliente, type Propuesta,
 } from "@/lib/propuesta";
 import { fmtFecha, fmtNum } from "@/components/BondAnalysis";
@@ -45,6 +45,11 @@ export default function PropuestaPage() {
   const [iaCargando, setIaCargando] = useState<null | "sugerir" | "analizar">(null);
   const [informe, setInforme] = useState(false);
   const [ejecutando, setEjecutando] = useState(false);
+  const [tasas, setTasas] = useState<{ UYU_per_USD: number; UI_in_UYU: number } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/cotizaciones").then((r) => r.json()).then(setTasas).catch(() => setTasas(null));
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -68,7 +73,8 @@ export default function PropuestaPage() {
   }, [id]);
 
   const mapa = useMemo(() => new Map(catalogo.map((i) => [i.isin, i])), [catalogo]);
-  const metricas = useMemo(() => calcularCartera(items, perfil.monto, costos), [items, perfil.monto, costos]);
+  const fxs = useMemo(() => tiposParaPerfil(perfil.moneda, tasas), [perfil.moneda, tasas]);
+  const metricas = useMemo(() => calcularCartera(items, perfil.monto, costos, undefined, fxs), [items, perfil.monto, costos, fxs]);
   const ejecutada = prop?.estado === "ejecutada";
   const monedaRef = metricas.monedas.length === 1 ? metricas.monedas[0] : perfil.moneda;
 
@@ -221,7 +227,7 @@ export default function PropuestaPage() {
 
       {ejecutada && (
         <Panel title="Seguimiento: real contra propuesta">
-          <Seguimiento propuesta={prop} costos={costos} catalogo={mapa} />
+          <Seguimiento propuesta={prop} costos={costos} catalogo={mapa} fxs={fxs} />
         </Panel>
       )}
 

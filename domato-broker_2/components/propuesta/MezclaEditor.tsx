@@ -93,8 +93,10 @@ export default function MezclaEditor({
                   />
                 </td>
                 <td className="px-2 py-2 text-right tabular-nums whitespace-nowrap">
-                  {fmtMonto(l.monto, l.item.moneda)}
-                  <span className="block text-[11px] text-muted">VN {fmtNum(l.vn, 0)}</span>
+                  {fmtMonto(l.montoLocal, l.item.moneda)}
+                  <span className="block text-[11px] text-muted">
+                    VN {fmtNum(l.vn, 0)}{l.fx !== 1 ? ` · ≈ ${fmtMonto(l.monto, moneda)}` : ""}
+                  </span>
                 </td>
                 <td className="px-2 py-2 text-right tabular-nums">{fmtNum(l.item.precio, 2)}</td>
                 <td className="px-2 py-2 text-right tabular-nums whitespace-nowrap">{fmtFecha(l.item.vencimiento)}</td>

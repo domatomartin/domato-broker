@@ -4,7 +4,7 @@ import clsx from "clsx";
 import { analizarBono, hoyIso, tirDeFlujos } from "@/lib/bondMath";
 import { aplicarCostos, type Costos } from "@/lib/costos";
 import { efectivo, type Instrumento } from "@/lib/bvm";
-import { calcularCartera, type Propuesta } from "@/lib/propuesta";
+import { calcularCartera, type Propuesta, type TiposDeCambio } from "@/lib/propuesta";
 import { fmtFecha, fmtMonto, fmtNum } from "@/components/BondAnalysis";
 
 const DIA = 86_400_000;
@@ -19,11 +19,11 @@ function Kpi({ label, value, sub, tono }: { label: string; value: string; sub?: 
   );
 }
 
-export default function Seguimiento({ propuesta: p, costos, catalogo }: { propuesta: Propuesta; costos: Costos; catalogo: Map<string, Instrumento> }) {
+export default function Seguimiento({ propuesta: p, costos, catalogo, fxs = {} }: { propuesta: Propuesta; costos: Costos; catalogo: Map<string, Instrumento>; fxs?: TiposDeCambio }) {
   if (!p.ejecucion?.length) return null;
   const hoy = hoyIso();
   const fechaProp = (p.fecha_presentada ?? p.created_at).slice(0, 10);
-  const propuesta = calcularCartera(p.items, p.perfil.monto, costos, fechaProp);
+  const propuesta = calcularCartera(p.items, p.perfil.monto, costos, fechaProp, fxs);
 
   const filas = p.ejecucion.map((x) => {
     const item = p.items.find((i) => i.isin === x.isin)!;
@@ -50,14 +50,16 @@ export default function Seguimiento({ propuesta: p, costos, catalogo }: { propue
     return { x, item, prop, ej, precioHoy, valorHoy, cobrado, invertido, resultado, esperado, tirProp, vencido, anios };
   });
 
-  const tot = (fn: (f: (typeof filas)[number]) => number | null) => filas.reduce((s, f) => s + (fn(f) ?? 0), 0);
+  // Totales en la moneda del perfil.
+  const tot = (fn: (f: (typeof filas)[number]) => number | null) => filas.reduce((s, f) => s + (fn(f) ?? 0) * (fxs[f.item.moneda] ?? 1), 0);
   const invertido = tot((f) => f.invertido);
   const valorHoy = tot((f) => f.valorHoy);
   const cobrado = tot((f) => f.cobrado);
   const resultado = valorHoy + cobrado - invertido;
   const esperado = tot((f) => f.esperado);
   const desvio = valorHoy + cobrado - esperado;
-  const moneda = p.items[0]?.moneda ?? p.perfil.moneda;
+  const monedasItems = [...new Set(p.items.map((i) => i.moneda))];
+  const moneda = monedasItems.length === 1 ? monedasItems[0] : p.perfil.moneda;
 
   // TIR neta de lo efectivamente comprado (flujos desde la ejecución).
   const flujosEj = filas.flatMap((f) => (f.ej ? f.ej.flujosNetos.map((fl) => ({ anios: fl.anios, total: fl.total })) : []));

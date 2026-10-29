@@ -126,7 +126,7 @@ export default function InformePropuesta({
                     <span className="block text-[10px] text-muted">{l.item.isin} · {l.item.moneda} · {l.grupo}</span>
                   </td>
                   <td className="py-1 text-right">{fmtNum(l.item.peso, 1, "%")}</td>
-                  <td className="py-1 text-right">{fmtMonto(l.monto, l.item.moneda)}</td>
+                  <td className="py-1 text-right">{fmtMonto(l.montoLocal, l.item.moneda)}{l.fx !== 1 && <span className="block text-[10px] text-muted">≈ {fmtMonto(l.monto, moneda)}</span>}</td>
                   <td className="py-1 text-right">{fmtNum(l.item.precio, 2)}</td>
                   <td className="py-1 text-right">{l.item.cupon ? fmtNum(l.item.cupon, 3, "%") : "—"}</td>
                   <td className="py-1 text-right">{fmtFecha(l.item.vencimiento)}</td>

@@ -69,7 +69,8 @@ export default function ResumenCartera({ m, moneda }: { m: MetricasCartera; mone
       </div>
       {mezcla && (
         <p className="rounded bg-warn/10 px-3 py-2 text-xs text-warn">
-          La propuesta combina {m.monedas.join(" y ")}: los totales suman monedas distintas y la TIR es un promedio ponderado aproximado.
+          La propuesta combina {m.monedas.join(" y ")}: los importes se pasan a {moneda} con la cotización de hoy (sin proyectar inflación ni devaluación)
+          y la TIR es un promedio ponderado que mezcla tasas nominales y reales (UI): tomala como aproximada.
         </p>
       )}
     </div>

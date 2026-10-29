@@ -102,7 +102,9 @@ export function itemDesdeInstrumento(i: Instrumento, peso: number, motivo?: stri
 
 export type LineaCalculada = {
   item: ItemPropuesta;
-  monto: number;
+  monto: number;        // en la moneda del perfil
+  montoLocal: number;   // en la moneda del bono
+  fx: number;           // 1 unidad de la moneda del bono, expresada en la moneda del perfil
   a: AnalisisBono;
   vn: number;
   neto: ResultadoNeto | null;
@@ -157,30 +159,45 @@ function agrupar(lineas: LineaCalculada[], clave: (l: LineaCalculada) => string,
   return [...m.entries()].map(([k, v]) => ({ clave: k, pct: total > 0 ? (v / total) * 100 : 0 })).sort((a, b) => b.pct - a.pct);
 }
 
-/** Calcula la propuesta como cartera: cada bono con su monto, costos, y los agregados. */
-export function calcularCartera(items: ItemPropuesta[], montoTotal: number, costos: Costos, fecha?: string): MetricasCartera {
+/**
+ * Valor de 1 unidad de cada moneda expresado en la moneda del perfil
+ * (p. ej. perfil en pesos: UI → valor de la UI en pesos). Lo que no esté, vale 1.
+ */
+export type TiposDeCambio = Record<string, number>;
+
+export function tiposParaPerfil(moneda: PerfilCliente["moneda"], t: { UYU_per_USD: number; UI_in_UYU: number } | null): TiposDeCambio {
+  if (!t) return {};
+  if (moneda === "UYU") return { UYU: 1, UI: t.UI_in_UYU, USD: t.UYU_per_USD };
+  if (moneda === "USD") return { USD: 1, UYU: 1 / t.UYU_per_USD, UI: t.UI_in_UYU / t.UYU_per_USD };
+  return { UI: 1, UYU: 1 / t.UI_in_UYU };
+}
+
+/** Calcula la propuesta como cartera: cada bono con su monto, costos, y los agregados (en la moneda del perfil). */
+export function calcularCartera(items: ItemPropuesta[], montoTotal: number, costos: Costos, fecha?: string, fxs: TiposDeCambio = {}): MetricasCartera {
   const lineas: LineaCalculada[] = items.map((item) => {
+    const fx = fxs[item.moneda] ?? 1;
     const monto = (montoTotal * item.peso) / 100;
+    const montoLocal = monto / fx;
     const a = analizarBono({ cupon: item.cupon, frecuencia: item.frecuencia, vencimiento: item.vencimiento, precio: item.precio }, fecha);
-    const vn = a.completo ? nominalNetoParaMonto(a, monto, costos) : 0;
+    const vn = a.completo ? nominalNetoParaMonto(a, montoLocal, costos) : 0;
     const neto = a.completo ? aplicarCostos(a, vn, costos) : null;
     const grupo = grupoDe({ isin: item.isin, especie: item.especie } as Instrumento);
-    return { item, monto, a, vn, neto, grupo };
+    return { item, monto, montoLocal, fx, a, vn, neto, grupo };
   });
 
   const validas = lineas.filter((l) => l.neto);
-  const inversionTotal = validas.reduce((s, l) => s + l.neto!.inversionTotal, 0);
-  const inversionBruta = validas.reduce((s, l) => s + l.neto!.inversionBruta, 0);
+  const inversionTotal = validas.reduce((s, l) => s + l.neto!.inversionTotal * l.fx, 0);
+  const inversionBruta = validas.reduce((s, l) => s + l.neto!.inversionBruta * l.fx, 0);
 
-  // Flujos combinados (misma moneda) para la TIR de la cartera.
-  const flujosNetos = validas.flatMap((l) => l.neto!.flujosNetos.map((f) => ({ anios: f.anios, total: f.total, fecha: f.fecha })));
-  const flujosBrutos = validas.flatMap((l) => l.a.flujos.map((f) => ({ anios: f.anios, total: (f.total * l.vn) / 100 })));
+  // Flujos combinados en la moneda del perfil (UI convertida al valor de hoy: no proyecta inflación).
+  const flujosNetos = validas.flatMap((l) => l.neto!.flujosNetos.map((f) => ({ anios: f.anios, total: f.total * l.fx, fecha: f.fecha })));
+  const flujosBrutos = validas.flatMap((l) => l.a.flujos.map((f) => ({ anios: f.anios, total: ((f.total * l.vn) / 100) * l.fx })));
   const monedas = [...new Set(lineas.map((l) => l.item.moneda))];
   const unaMoneda = monedas.length === 1;
 
   const ponderar = (fn: (l: LineaCalculada) => number | null) => {
     let s = 0, w = 0;
-    for (const l of validas) { const v = fn(l); if (v != null) { s += v * l.neto!.inversionTotal; w += l.neto!.inversionTotal; } }
+    for (const l of validas) { const v = fn(l); if (v != null) { s += v * l.neto!.inversionTotal * l.fx; w += l.neto!.inversionTotal * l.fx; } }
     return w > 0 ? s / w : null;
   };
 
@@ -191,12 +208,12 @@ export function calcularCartera(items: ItemPropuesta[], montoTotal: number, cost
   for (const l of validas) for (const f of l.neto!.flujosNetos) {
     const y = f.fecha.slice(0, 4);
     const acc = porAnioMap.get(y) ?? { interes: 0, capital: 0 };
-    acc.interes += f.interes - f.costos;
-    acc.capital += f.amortizacion;
+    acc.interes += (f.interes - f.costos) * l.fx;
+    acc.capital += f.amortizacion * l.fx;
     porAnioMap.set(y, acc);
   }
 
-  const totalACobrarNeto = validas.reduce((s, l) => s + l.neto!.totalACobrarNeto, 0);
+  const totalACobrarNeto = validas.reduce((s, l) => s + l.neto!.totalACobrarNeto * l.fx, 0);
   const gananciaNeta = totalACobrarNeto - inversionTotal;
   const montoAsignado = lineas.reduce((s, l) => s + l.monto, 0);
 
@@ -204,8 +221,8 @@ export function calcularCartera(items: ItemPropuesta[], montoTotal: number, cost
     lineas,
     pesoTotal: items.reduce((s, i) => s + i.peso, 0),
     inversionTotal,
-    costosCompra: validas.reduce((s, l) => s + l.neto!.costoCompra, 0),
-    costosTotales: validas.reduce((s, l) => s + l.neto!.costosTotales, 0),
+    costosCompra: validas.reduce((s, l) => s + l.neto!.costoCompra * l.fx, 0),
+    costosTotales: validas.reduce((s, l) => s + l.neto!.costosTotales * l.fx, 0),
     totalACobrarNeto,
     gananciaNeta,
     gananciaNetaPct: inversionTotal > 0 ? (gananciaNeta / inversionTotal) * 100 : 0,
@@ -213,7 +230,7 @@ export function calcularCartera(items: ItemPropuesta[], montoTotal: number, cost
     tirNeta,
     duration: ponderar((l) => l.a.duration),
     plazoPromedio: ponderar((l) => l.a.aniosAlVencimiento),
-    interesAnual: validas.reduce((s, l) => s + ((l.a.cupon ?? 0) / 100) * l.vn, 0),
+    interesAnual: validas.reduce((s, l) => s + ((l.a.cupon ?? 0) / 100) * l.vn * l.fx, 0),
     monedas,
     porGrupo: agrupar(lineas, (l) => l.grupo, montoAsignado),
     porPlazo: agrupar(lineas, (l) => bucketPlazo(l.a.aniosAlVencimiento), montoAsignado),
