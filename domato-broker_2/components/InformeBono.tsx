@@ -7,7 +7,7 @@ import { escalar, type AnalisisBono } from "@/lib/bondMath";
 import { aplicarCostos, irpfDe, nominalNetoParaMonto, COSTOS_DEFECTO, type Costos } from "@/lib/costos";
 import { efectivo, type Instrumento } from "@/lib/bvm";
 import { AVISO_SIMULACION, fmtFecha, fmtMonto, fmtNum } from "@/components/BondAnalysis";
-import { CobrosChart, SensibilidadChart } from "@/components/BondCharts";
+import { CobrosCarteraChart, SensibilidadChart } from "@/components/BondCharts";
 
 export type BonoInforme = { i: Instrumento; a: AnalisisBono };
 
@@ -130,8 +130,8 @@ function SeccionBono({ b, monto, n0, costos }: { b: BonoInforme; monto: number; 
         <Titulo n={n0 + 2}>Proyección</Titulo>
         <div className="grid grid-cols-[3fr_2fr] gap-6">
           <div>
-            <p className="text-[11px] text-muted mb-1">Cobros acumulados frente a lo invertido ({i.moneda})</p>
-            <CobrosChart a={a} k={k} moneda={i.moneda} />
+            <p className="text-[11px] text-muted mb-1">Cobros acumulados netos frente a lo invertido ({i.moneda})</p>
+            <CobrosCarteraChart flujos={n.flujosNetos} inversion={n.inversionTotal} moneda={i.moneda} />
           </div>
           <div>
             <p className="text-[11px] text-muted mb-2">Valor de la inversión si la tasa de mercado cambia hoy</p>

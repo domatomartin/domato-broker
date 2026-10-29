@@ -3,7 +3,7 @@
 import { useState } from "react";
 import clsx from "clsx";
 import { analizarBono, escalar, type DatosBono, type AnalisisBono } from "@/lib/bondMath";
-import { CobrosChart, SensibilidadChart } from "@/components/BondCharts";
+import { CobrosCarteraChart, CobrosChart, SensibilidadChart } from "@/components/BondCharts";
 import { aplicarCostos, type Costos } from "@/lib/costos";
 
 const ISO = ["USD", "UYU", "ARS", "EUR", "BRL", "COP"];
@@ -192,13 +192,17 @@ export default function BondAnalysis({
         <div>
           <div className="flex items-baseline justify-between gap-2 mb-1">
             <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted">
-              Lo que vas cobrando{m ? ` (${moneda})` : " (cada 100 de nominal)"}
+              Lo que vas cobrando{m ? ` (${moneda}${neto ? ", neto" : ""})` : " (cada 100 de nominal)"}
             </p>
             <button type="button" onClick={() => setVerTabla((v) => !v)} className="text-[11px] text-muted underline hover:text-paper print:hidden">
               {verTabla ? "Ocultar pagos" : "Ver cada pago"}
             </button>
           </div>
-          <CobrosChart a={a} k={k} moneda={m ? moneda : null} />
+          {neto ? (
+            <CobrosCarteraChart flujos={neto.flujosNetos} inversion={neto.inversionTotal} moneda={moneda} />
+          ) : (
+            <CobrosChart a={a} k={k} moneda={m ? moneda : null} />
+          )}
           <p className="text-[11px] text-muted">
             {a.flujos.length} cupones de {enPlata(cuponPorPago)} y el capital ({m ? fmtMonto(vn!, moneda) : "100"}) el {fmtFecha(a.flujos[a.flujos.length - 1].fecha)}.
           </p>
