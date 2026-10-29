@@ -18,6 +18,7 @@ import {
   Bot,
   Tag,
   Landmark,
+  FileSignature,
 } from "lucide-react";
 
 const groups: {
@@ -36,6 +37,7 @@ const groups: {
     items: [
       { href: "/cartera", label: "Cartera", icon: Wallet },
       { href: "/opciones", label: "Opciones de inversión", icon: Landmark },
+      { href: "/propuestas", label: "Propuestas", icon: FileSignature },
       { href: "/historico", label: "Historico", icon: History },
       { href: "/riesgo", label: "Riesgo", icon: ShieldAlert },
     ],

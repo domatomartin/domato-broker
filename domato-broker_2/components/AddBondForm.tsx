@@ -7,6 +7,7 @@ import { efectivo, type Instrumento } from "@/lib/bvm";
 import CatalogoBvmSync from "@/components/CatalogoBvmSync";
 import BondAnalysis from "@/components/BondAnalysis";
 import { analizarBono } from "@/lib/bondMath";
+import { useCostos } from "@/lib/useCostos";
 
 const NUEVA_CARTERA = "__nueva__";
 
@@ -46,6 +47,7 @@ export default function AddBondForm({
   const [cartera, setCartera] = useState<string>(carteraInicial ?? carteras[0] ?? NUEVA_CARTERA);
   const [nuevaCartera, setNuevaCartera] = useState("");
   const [catalogo, setCatalogo] = useState<Instrumento[]>([]);
+  const { costos } = useCostos();
   const [busqueda, setBusqueda] = useState("");
   const [elegido, setElegido] = useState<string | null>(null);
 
@@ -263,6 +265,7 @@ export default function AddBondForm({
           datos={datosSimulacion}
           moneda={values.moneda || "USD"}
           valorNominal={nominalSimulacion > 0 ? nominalSimulacion : undefined}
+          costos={costos}
         />
       </div>
 

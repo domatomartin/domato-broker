@@ -4,6 +4,7 @@ import { useState } from "react";
 import clsx from "clsx";
 import { analizarBono, escalar, type DatosBono, type AnalisisBono } from "@/lib/bondMath";
 import { CobrosChart, SensibilidadChart } from "@/components/BondCharts";
+import { aplicarCostos, type Costos } from "@/lib/costos";
 
 const ISO = ["USD", "UYU", "ARS", "EUR", "BRL", "COP"];
 
@@ -25,7 +26,7 @@ export function fmtFecha(iso: string | null) {
 }
 
 export const AVISO_SIMULACION =
-  "Simulación orientativa con precios del vector BCU/BVM, cupón fijo y capital al vencimiento (si el bono amortiza en cuotas la TIR es aproximada). No incluye comisiones. No constituye asesoramiento ni oferta de inversión.";
+  "Simulación orientativa con precios del vector BCU/BVM, cupón fijo y capital al vencimiento (si el bono amortiza en cuotas la TIR es aproximada). Los costos del corredor salen de las tarifas configuradas; no incluye impuestos. No constituye asesoramiento ni oferta de inversión.";
 
 function Dato({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
@@ -56,6 +57,7 @@ export default function BondAnalysis({
   titulo,
   subtitulo,
   mostrarAviso = true,
+  costos,
 }: {
   datos: DatosBono;
   moneda: string;
@@ -65,6 +67,7 @@ export default function BondAnalysis({
   subtitulo?: string;
   mostrarAviso?: boolean;
   mostrarFlujos?: boolean;
+  costos?: Costos | null;
 }) {
   const [verTabla, setVerTabla] = useState(false);
   const a = analisis ?? analizarBono(datos);
@@ -85,6 +88,7 @@ export default function BondAnalysis({
   const enPlata = (v: number) => (m ? fmtMonto(v * k, moneda) : fmtNum(v, 2));
   const caidaPct = a.durationModificada != null ? a.durationModificada : null; // % por cada 1 punto de tasa
   const cuponPorPago = a.flujos[0]?.interes ?? 0;
+  const neto = m && costos ? aplicarCostos(a, vn!, costos) : null;
 
   return (
     <div className="flex flex-col gap-5">
@@ -98,21 +102,37 @@ export default function BondAnalysis({
       {/* Lo principal, grande */}
       <div className="grid gap-3 sm:grid-cols-3">
         <div className="rounded-xl bg-gain/10 px-4 py-3">
-          <p className="text-xs text-muted">{real ? `TIR real en ${moneda}` : "TIR al día"}</p>
-          <p className="text-3xl font-semibold text-gain tabular-nums leading-tight">{fmtNum(a.tir, 2, "%")}</p>
-          <p className="text-[11px] text-muted">anual efectiva · nominal {fmtNum(a.tirNominal, 2, "%")}</p>
+          {neto ? (
+            <>
+              <p className="text-xs text-muted">{real ? `TIR real neta (${moneda})` : "TIR neta de costos"}</p>
+              <p className="text-3xl font-semibold text-gain tabular-nums leading-tight">{fmtNum(neto.tirNeta, 2, "%")}</p>
+              <p className="text-[11px] text-muted">bruta {fmtNum(a.tir, 2, "%")} · costos −{fmtNum(neto.costoEnTir, 2)} pts</p>
+            </>
+          ) : (
+            <>
+              <p className="text-xs text-muted">{real ? `TIR real en ${moneda}` : "TIR al día"}</p>
+              <p className="text-3xl font-semibold text-gain tabular-nums leading-tight">{fmtNum(a.tir, 2, "%")}</p>
+              <p className="text-[11px] text-muted">anual efectiva · nominal {fmtNum(a.tirNominal, 2, "%")}</p>
+            </>
+          )}
         </div>
         {m ? (
           <>
             <div className="rounded-xl bg-ink px-4 py-3">
               <p className="text-xs text-muted">Invertís hoy</p>
-              <p className="text-2xl font-semibold text-paper tabular-nums leading-tight">{fmtMonto(m.inversion, moneda)}</p>
-              <p className="text-[11px] text-muted">compra {fmtNum(vn, 0)} de valor nominal</p>
+              <p className="text-2xl font-semibold text-paper tabular-nums leading-tight">{fmtMonto(neto ? neto.inversionTotal : m.inversion, moneda)}</p>
+              <p className="text-[11px] text-muted">
+                compra {fmtNum(vn, 0)} de valor nominal{neto ? ` · incluye ${fmtMonto(neto.costoCompra, moneda)} de comisión` : ""}
+              </p>
             </div>
             <div className="rounded-xl bg-ink px-4 py-3">
               <p className="text-xs text-muted">Cobrás hasta el vencimiento</p>
-              <p className="text-2xl font-semibold text-paper tabular-nums leading-tight">{fmtMonto(m.totalACobrar, moneda)}</p>
-              <p className="text-[11px] text-gain font-medium">ganancia {fmtMonto(m.ganancia, moneda)} · +{fmtNum(a.gananciaAlVencimiento, 1, "%")}</p>
+              <p className="text-2xl font-semibold text-paper tabular-nums leading-tight">{fmtMonto(neto ? neto.totalACobrarNeto : m.totalACobrar, moneda)}</p>
+              <p className="text-[11px] text-gain font-medium">
+                {neto
+                  ? `ganancia neta ${fmtMonto(neto.gananciaNeta, moneda)} · +${fmtNum(neto.gananciaNetaPct, 1, "%")}`
+                  : `ganancia ${fmtMonto(m.ganancia, moneda)} · +${fmtNum(a.gananciaAlVencimiento, 1, "%")}`}
+              </p>
             </div>
           </>
         ) : (
@@ -143,11 +163,19 @@ export default function BondAnalysis({
           />
         </Bloque>
 
-        <Bloque titulo="Precio">
+        <Bloque titulo={neto ? "Precio y costos" : "Precio"}>
           <Dato label="Precio limpio" value={fmtNum(a.precioSucio - a.interesCorrido, 2)} hint="cada 100 de nominal" />
           <Dato label="Interés corrido" value={fmtNum(a.interesCorrido, 2)} hint="se paga al comprar" />
           <Dato label="Precio sucio" value={fmtNum(a.precioSucio, 2)} />
           <Dato label="Convexidad" value={fmtNum(a.convexidad, 1)} />
+          {neto && (
+            <>
+              <Dato label="Comisión de compra" value={fmtMonto(neto.costoCompra, moneda)} hint="con IVA" />
+              <Dato label="Custodia hasta el vto." value={fmtMonto(neto.custodiaTotal, moneda)} hint="con IVA" />
+              {neto.comisionCupones > 0 && <Dato label="Comisión sobre cupones" value={fmtMonto(neto.comisionCupones, moneda)} />}
+              <Dato label="Costos totales" value={fmtMonto(neto.costosTotales, moneda)} hint={`${fmtNum((neto.costosTotales / neto.inversionTotal) * 100, 2, "%")} de lo invertido`} />
+            </>
+          )}
         </Bloque>
       </div>
 

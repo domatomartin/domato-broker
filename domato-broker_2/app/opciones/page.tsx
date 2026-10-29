@@ -7,27 +7,12 @@ import { Panel } from "@/components/Card";
 import BondAnalysis, { AVISO_SIMULACION, fmtFecha, fmtMonto, fmtNum } from "@/components/BondAnalysis";
 import CatalogoBvmSync from "@/components/CatalogoBvmSync";
 import InformeBono from "@/components/InformeBono";
+import CostosEditor from "@/components/CostosEditor";
+import { useCostos } from "@/lib/useCostos";
+import { aplicarCostos, nominalNetoParaMonto, type Costos } from "@/lib/costos";
 import { analizarBono, escalar, nominalParaMonto, type AnalisisBono } from "@/lib/bondMath";
-import { efectivo, type Instrumento } from "@/lib/bvm";
+import { efectivo, grupoDe, GRUPOS, type Grupo, type Instrumento } from "@/lib/bvm";
 
-type Grupo = "Uruguay soberano" | "Corporativos" | "Fideicomisos" | "Acciones" | "Exterior" | "Otros";
-
-function grupoDe(i: Instrumento): Grupo {
-  const e = i.especie ?? "";
-  if (/Acciones/.test(e)) return "Acciones";
-  if (/Obligaciones/.test(e)) return "Corporativos";
-  if (/Fideicomiso|Fid\. Fin|Certificados/.test(e)) return "Fideicomisos";
-  if (/Global Uruguay|Notas del|Bonos del Tesoro|Regulaci|Letra de Tesor|Previsional/.test(e)) return "Uruguay soberano";
-  if (/Extranjeros|Soberanos|Org\. Intern|Global en EU|Canasta/.test(e)) return "Exterior";
-  if (i.isin.startsWith("UY")) {
-    if (i.isin.startsWith("UYFF")) return "Fideicomisos";
-    if (i.isin.startsWith("UYON")) return "Corporativos";
-    return "Otros";
-  }
-  return "Exterior";
-}
-
-const GRUPOS: Grupo[] = ["Uruguay soberano", "Corporativos", "Fideicomisos", "Exterior", "Acciones", "Otros"];
 const MONEDAS = ["USD", "UI", "UYU", "UP", "EUR", "BRL", "COP", "UR"];
 const MAX_COMPARAR = 4;
 
@@ -106,6 +91,7 @@ export default function OpcionesPage() {
   const [editando, setEditando] = useState<string | null>(null);
   const [monto, setMonto] = useState("10000");
   const [informe, setInforme] = useState(false);
+  const { costos, guardar: guardarCostos } = useCostos();
 
   async function cargar() {
     const { data } = await supabase.from("instrumentos").select("*");
@@ -184,7 +170,10 @@ export default function OpcionesPage() {
             {instrumentos[0]?.fecha_precio && ` · precios del ${fmtFecha(instrumentos[0].fecha_precio)}`}
           </p>
         </div>
-        <CatalogoBvmSync onSynced={cargar} />
+        <div className="flex flex-wrap items-center gap-3">
+          <CostosEditor costos={costos} onGuardar={guardarCostos} />
+          <CatalogoBvmSync onSynced={cargar} />
+        </div>
       </div>
 
       {seleccionadas.length > 0 && (
@@ -226,18 +215,19 @@ export default function OpcionesPage() {
                   datos={{ cupon: e.cupon, frecuencia: e.frecuencia, vencimiento: e.vencimiento, precio: e.precio }}
                   analisis={f.a}
                   moneda={f.i.moneda}
-                  valorNominal={f.a.completo ? nominalParaMonto(f.a, montoNum) : undefined}
+                  valorNominal={f.a.completo ? nominalNetoParaMonto(f.a, montoNum, costos) : undefined}
+                  costos={costos}
                 />
               );
             })()
           ) : (
-            <TablaComparacion filas={seleccionadas} monto={montoNum} />
+            <TablaComparacion filas={seleccionadas} monto={montoNum} costos={costos} />
           )}
         </Panel>
       )}
 
       {informe && seleccionadas.length > 0 && (
-        <InformeBono bonos={seleccionadas.map((f) => ({ i: f.i, a: f.a }))} monto={montoNum} onClose={() => setInforme(false)} />
+        <InformeBono bonos={seleccionadas.map((f) => ({ i: f.i, a: f.a }))} monto={montoNum} costos={costos} onClose={() => setInforme(false)} />
       )}
 
       <Panel title="Catálogo">
@@ -364,24 +354,27 @@ function FilaTabla({
   );
 }
 
-function TablaComparacion({ filas, monto }: { filas: Fila[]; monto: number }) {
+function TablaComparacion({ filas, monto, costos }: { filas: Fila[]; monto: number; costos: Costos }) {
   const [detalle, setDetalle] = useState<string | null>(null);
   const datos = filas.map((f) => {
     const e = efectivo(f.i);
-    const m = f.a.completo ? escalar(f.a, nominalParaMonto(f.a, monto)) : null;
-    return { f, e, m };
+    const vn = f.a.completo ? nominalNetoParaMonto(f.a, monto, costos) : 0;
+    const m = f.a.completo ? escalar(f.a, vn) : null;
+    const n = f.a.completo ? aplicarCostos(f.a, vn, costos) : null;
+    return { f, e, m, n, vn };
   });
   // Solo tiene sentido marcar "el mejor" si todos están en la misma moneda.
   const mismaMoneda = new Set(filas.map((f) => f.i.moneda)).size === 1;
-  const mejorTir = Math.max(...datos.map((d) => d.f.a.tir ?? -Infinity));
-  const mejorGanancia = Math.max(...datos.map((d) => d.m?.ganancia ?? -Infinity));
+  const mejorTir = Math.max(...datos.map((d) => d.n?.tirNeta ?? -Infinity));
+  const mejorGanancia = Math.max(...datos.map((d) => d.n?.gananciaNeta ?? -Infinity));
 
   type Fila_ = { label: string; valor: (d: (typeof datos)[number]) => string; destacar?: (d: (typeof datos)[number]) => boolean };
   const secciones: { titulo: string; filas: Fila_[] }[] = [
     {
       titulo: "Rendimiento",
       filas: [
-        { label: "TIR al día", valor: (d) => fmtNum(d.f.a.tir, 2, "%"), destacar: (d) => d.f.a.tir === mejorTir },
+        { label: "TIR neta de costos", valor: (d) => fmtNum(d.n?.tirNeta, 2, "%"), destacar: (d) => d.n?.tirNeta === mejorTir },
+        { label: "TIR bruta", valor: (d) => fmtNum(d.f.a.tir, 2, "%") },
         { label: "Rendimiento corriente", valor: (d) => (d.e.letra ? "—" : fmtNum(d.f.a.currentYield, 2, "%")) },
         { label: "Cupón anual", valor: (d) => (d.e.letra ? "Letra (sin cupón)" : fmtNum(d.e.cupon, 3, "%")) },
       ],
@@ -391,11 +384,12 @@ function TablaComparacion({ filas, monto }: { filas: Fila[]; monto: number }) {
       filas: [
         { label: "Interés por año", valor: (d) => (d.m ? fmtMonto(d.m.interesAnual, d.f.i.moneda) : "—") },
         { label: "Intereses futuros", valor: (d) => (d.m ? fmtMonto(d.m.totalIntereses, d.f.i.moneda) : "—") },
-        { label: "Total a cobrar", valor: (d) => (d.m ? fmtMonto(d.m.totalACobrar, d.f.i.moneda) : "—") },
+        { label: "Costos del corredor", valor: (d) => (d.n ? fmtMonto(d.n.costosTotales, d.f.i.moneda) : "—") },
+        { label: "Total a cobrar (neto)", valor: (d) => (d.n ? fmtMonto(d.n.totalACobrarNeto, d.f.i.moneda) : "—") },
         {
-          label: "Ganancia al vencimiento",
-          valor: (d) => (d.m ? `${fmtMonto(d.m.ganancia, d.f.i.moneda)} (+${fmtNum(d.f.a.gananciaAlVencimiento, 1, "%")})` : "—"),
-          destacar: (d) => d.m?.ganancia === mejorGanancia,
+          label: "Ganancia neta",
+          valor: (d) => (d.n ? `${fmtMonto(d.n.gananciaNeta, d.f.i.moneda)} (+${fmtNum(d.n.gananciaNetaPct, 1, "%")})` : "—"),
+          destacar: (d) => d.n?.gananciaNeta === mejorGanancia,
         },
       ],
     },
@@ -480,7 +474,8 @@ function TablaComparacion({ filas, monto }: { filas: Fila[]; monto: number }) {
             datos={{ cupon: abierta.e.cupon, frecuencia: abierta.e.frecuencia, vencimiento: abierta.e.vencimiento, precio: abierta.e.precio }}
             analisis={abierta.f.a}
             moneda={abierta.f.i.moneda}
-            valorNominal={abierta.f.a.completo ? nominalParaMonto(abierta.f.a, monto) : undefined}
+            valorNominal={abierta.f.a.completo ? abierta.vn : undefined}
+            costos={costos}
             mostrarAviso={false}
           />
         </div>

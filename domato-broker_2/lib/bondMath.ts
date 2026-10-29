@@ -228,3 +228,9 @@ export function cobrosAcumulados(a: AnalisisBono) {
     return { fecha: f.fecha, anios: f.anios, acumulado: acc, interesesAcumulados: acc - (f.amortizacion ? 100 : 0) };
   });
 }
+
+/** TIR efectiva anual (%) de una inversión hoy contra flujos futuros {anios, total}. */
+export function tirDeFlujos(inversion: number, flujos: { anios: number; total: number }[]): number | null {
+  const r = resolverTir(flujos as Flujo[], inversion);
+  return r == null ? null : r * 100;
+}

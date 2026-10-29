@@ -209,3 +209,22 @@ export function efectivo(i: Instrumento) {
     letra: false,
   };
 }
+
+export type Grupo = "Uruguay soberano" | "Corporativos" | "Fideicomisos" | "Acciones" | "Exterior" | "Otros";
+
+export function grupoDe(i: Instrumento): Grupo {
+  const e = i.especie ?? "";
+  if (/Acciones/.test(e)) return "Acciones";
+  if (/Obligaciones/.test(e)) return "Corporativos";
+  if (/Fideicomiso|Fid\. Fin|Certificados/.test(e)) return "Fideicomisos";
+  if (/Global Uruguay|Notas del|Bonos del Tesoro|Regulaci|Letra de Tesor|Previsional/.test(e)) return "Uruguay soberano";
+  if (/Extranjeros|Soberanos|Org\. Intern|Global en EU|Canasta/.test(e)) return "Exterior";
+  if (i.isin.startsWith("UY")) {
+    if (i.isin.startsWith("UYFF")) return "Fideicomisos";
+    if (i.isin.startsWith("UYON")) return "Corporativos";
+    return "Otros";
+  }
+  return "Exterior";
+}
+
+export const GRUPOS: Grupo[] = ["Uruguay soberano", "Corporativos", "Fideicomisos", "Exterior", "Acciones", "Otros"];

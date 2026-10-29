@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import clsx from "clsx";
-import { escalar, nominalParaMonto, type AnalisisBono } from "@/lib/bondMath";
+import { escalar, type AnalisisBono } from "@/lib/bondMath";
+import { aplicarCostos, nominalNetoParaMonto, COSTOS_DEFECTO, type Costos } from "@/lib/costos";
 import { efectivo, type Instrumento } from "@/lib/bvm";
 import { AVISO_SIMULACION, fmtFecha, fmtMonto, fmtNum } from "@/components/BondAnalysis";
 import { CobrosChart, SensibilidadChart } from "@/components/BondCharts";
@@ -12,14 +13,14 @@ export type BonoInforme = { i: Instrumento; a: AnalisisBono };
 
 const FRECUENCIA: Record<number, string> = { 1: "Anual", 2: "Semestral", 4: "Trimestral", 12: "Mensual" };
 
-function leer(clave: string) {
+export function leer(clave: string) {
   try { return localStorage.getItem(clave) ?? ""; } catch { return ""; }
 }
-function guardar(clave: string, v: string) {
+export function guardar(clave: string, v: string) {
   try { localStorage.setItem(clave, v); } catch { /* sin almacenamiento */ }
 }
 
-function Titulo({ n, children }: { n: number; children: React.ReactNode }) {
+export function Titulo({ n, children }: { n: number; children: React.ReactNode }) {
   return (
     <h3 className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-paper border-b border-paper/80 pb-1 mb-3">
       <span className="text-muted">{String(n).padStart(2, "0")}</span>
@@ -28,7 +29,7 @@ function Titulo({ n, children }: { n: number; children: React.ReactNode }) {
   );
 }
 
-function Par({ label, value }: { label: string; value: string }) {
+export function Par({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex justify-between gap-4 py-1 border-b border-ink-border text-[12px]">
       <dt className="text-muted">{label}</dt>
@@ -37,7 +38,7 @@ function Par({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Cifra({ label, value, sub, acento }: { label: string; value: string; sub?: string; acento?: boolean }) {
+export function Cifra({ label, value, sub, acento }: { label: string; value: string; sub?: string; acento?: boolean }) {
   return (
     <div className={clsx("rounded-lg px-3 py-2.5 border", acento ? "border-gain/40 bg-gain/10" : "border-ink-border bg-ink")}>
       <p className="text-[10px] uppercase tracking-[0.08em] text-muted">{label}</p>
@@ -47,15 +48,16 @@ function Cifra({ label, value, sub, acento }: { label: string; value: string; su
   );
 }
 
-function SeccionBono({ b, monto, n0 }: { b: BonoInforme; monto: number; n0: number }) {
+function SeccionBono({ b, monto, n0, costos }: { b: BonoInforme; monto: number; n0: number; costos: Costos }) {
   const { i, a } = b;
   const e = efectivo(i);
-  const vn = a.completo ? nominalParaMonto(a, monto) : 0;
+  const vn = a.completo ? nominalNetoParaMonto(a, monto, costos) : 0;
   const m = a.completo ? escalar(a, vn) : null;
+  const n = a.completo ? aplicarCostos(a, vn, costos) : null;
   const k = vn / 100;
   const real = ["UI", "UP", "UR"].includes(i.moneda);
 
-  if (!a.completo || !m) {
+  if (!a.completo || !m || !n) {
     return (
       <section className="avoid-break">
         <Titulo n={n0}>{i.nombre}</Titulo>
@@ -70,19 +72,19 @@ function SeccionBono({ b, monto, n0 }: { b: BonoInforme; monto: number; n0: numb
       <section className="avoid-break">
         <Titulo n={n0}>Resumen</Titulo>
         <p className="text-[13px] leading-relaxed text-paper">
-          Con una inversión de <strong>{fmtMonto(m.inversion, i.moneda)}</strong> en <strong>{i.nombre}</strong> al precio de{" "}
-          {fmtNum(e.precio, 2)}, se adquieren {fmtNum(vn, 0)} de valor nominal.
+          Con una inversión de <strong>{fmtMonto(n.inversionTotal, i.moneda)}</strong> en <strong>{i.nombre}</strong> al precio de{" "}
+          {fmtNum(e.precio, 2)}, se adquieren {fmtNum(vn, 0)} de valor nominal (la inversión incluye {fmtMonto(n.costoCompra, i.moneda)} de comisión de compra).
           {e.letra
             ? ` Es una letra a descuento: no paga cupones y devuelve ${fmtMonto(vn, i.moneda)} el ${fmtFecha(e.vencimiento)}.`
             : ` Se cobrarían ${a.flujos.length} cupones ${FRECUENCIA[a.frecuencia]?.toLowerCase() ?? ""}es de ${fmtMonto(cupon, i.moneda, 2)} y el capital de ${fmtMonto(vn, i.moneda)} el ${fmtFecha(e.vencimiento)}.`}{" "}
-          El total a cobrar sería <strong>{fmtMonto(m.totalACobrar, i.moneda)}</strong>, con una tasa interna de retorno del{" "}
-          <strong>{fmtNum(a.tir, 2, "%")} anual</strong>{real ? ` real en ${i.moneda}` : ""} si se mantiene hasta el vencimiento.
+          Descontados los costos del corredor, el total a cobrar sería <strong>{fmtMonto(n.totalACobrarNeto, i.moneda)}</strong>, con una tasa interna de retorno neta del{" "}
+          <strong>{fmtNum(n.tirNeta, 2, "%")} anual</strong>{real ? ` real en ${i.moneda}` : ""} si se mantiene hasta el vencimiento (TIR bruta {fmtNum(a.tir, 2, "%")}).
         </p>
         <div className="mt-3 grid grid-cols-4 gap-2">
-          <Cifra label={real ? `TIR real (${i.moneda})` : "TIR anual"} value={fmtNum(a.tir, 2, "%")} sub={`nominal ${fmtNum(a.tirNominal, 2, "%")}`} acento />
-          <Cifra label="Inversión" value={fmtMonto(m.inversion, i.moneda)} sub={`VN ${fmtNum(vn, 0)}`} />
-          <Cifra label="Total a cobrar" value={fmtMonto(m.totalACobrar, i.moneda)} sub={`intereses ${fmtMonto(m.totalIntereses, i.moneda)}`} />
-          <Cifra label="Ganancia" value={fmtMonto(m.ganancia, i.moneda)} sub={`+${fmtNum(a.gananciaAlVencimiento, 1, "%")} sin reinvertir`} />
+          <Cifra label={real ? `TIR real neta (${i.moneda})` : "TIR neta"} value={fmtNum(n.tirNeta, 2, "%")} sub={`bruta ${fmtNum(a.tir, 2, "%")}`} acento />
+          <Cifra label="Inversión" value={fmtMonto(n.inversionTotal, i.moneda)} sub={`VN ${fmtNum(vn, 0)}`} />
+          <Cifra label="Total a cobrar" value={fmtMonto(n.totalACobrarNeto, i.moneda)} sub={`neto de ${fmtMonto(n.costosTotales, i.moneda)} de costos`} />
+          <Cifra label="Ganancia neta" value={fmtMonto(n.gananciaNeta, i.moneda)} sub={`+${fmtNum(n.gananciaNetaPct, 1, "%")} sin reinvertir`} />
         </div>
       </section>
 
@@ -108,6 +110,17 @@ function SeccionBono({ b, monto, n0 }: { b: BonoInforme; monto: number; n0: numb
             <Par label="Duration modificada" value={fmtNum(a.durationModificada, 2)} />
             <Par label="Convexidad" value={fmtNum(a.convexidad, 1)} />
             <Par label="Próximo pago" value={fmtFecha(a.proximoCupon)} />
+          </div>
+        </dl>
+        <p className="mt-3 mb-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-muted">Costos del corredor (con IVA)</p>
+        <dl className="grid grid-cols-2 gap-x-8">
+          <div>
+            <Par label={`Comisión de compra (${fmtNum(costos.comision_compra_pct, 2)}%)`} value={fmtMonto(n.costoCompra, i.moneda, 2)} />
+            <Par label={`Custodia (${fmtNum(costos.custodia_anual_pct, 2)}% anual)`} value={fmtMonto(n.custodiaTotal, i.moneda, 2)} />
+          </div>
+          <div>
+            <Par label="Comisión sobre cupones" value={fmtMonto(n.comisionCupones, i.moneda, 2)} />
+            <Par label="Efecto en la TIR" value={`−${fmtNum(n.costoEnTir, 2)} puntos`} />
           </div>
         </dl>
       </section>
@@ -136,12 +149,13 @@ function SeccionBono({ b, monto, n0 }: { b: BonoInforme; monto: number; n0: numb
               <th className="text-left py-1 font-medium">Fecha</th>
               <th className="text-right py-1 font-medium">Interés</th>
               <th className="text-right py-1 font-medium">Capital</th>
-              <th className="text-right py-1 font-medium">Total</th>
+              <th className="text-right py-1 font-medium">Costos</th>
+              <th className="text-right py-1 font-medium">Neto</th>
               <th className="text-right py-1 font-medium">Acumulado</th>
             </tr>
           </thead>
           <tbody>
-            {m.flujos.reduce<{ filas: JSX.Element[]; acc: number }>(
+            {n.flujosNetos.reduce<{ filas: JSX.Element[]; acc: number }>(
               (r, f, idx) => {
                 r.acc += f.total;
                 r.filas.push(
@@ -150,6 +164,7 @@ function SeccionBono({ b, monto, n0 }: { b: BonoInforme; monto: number; n0: numb
                     <td className="py-0.5">{fmtFecha(f.fecha)}</td>
                     <td className="py-0.5 text-right">{fmtMonto(f.interes, i.moneda, 2)}</td>
                     <td className="py-0.5 text-right">{f.amortizacion ? fmtMonto(f.amortizacion, i.moneda, 2) : "—"}</td>
+                    <td className="py-0.5 text-right text-muted">{f.costos ? `−${fmtMonto(f.costos, i.moneda, 2)}` : "—"}</td>
                     <td className="py-0.5 text-right font-medium">{fmtMonto(f.total, i.moneda, 2)}</td>
                     <td className="py-0.5 text-right text-muted">{fmtMonto(r.acc, i.moneda, 0)}</td>
                   </tr>
@@ -162,7 +177,8 @@ function SeccionBono({ b, monto, n0 }: { b: BonoInforme; monto: number; n0: numb
               <td colSpan={2} className="py-1">Total</td>
               <td className="py-1 text-right">{fmtMonto(m.totalIntereses, i.moneda, 2)}</td>
               <td className="py-1 text-right">{fmtMonto(vn, i.moneda, 2)}</td>
-              <td className="py-1 text-right">{fmtMonto(m.totalACobrar, i.moneda, 2)}</td>
+              <td className="py-1 text-right">−{fmtMonto(n.custodiaTotal + n.comisionCupones, i.moneda, 2)}</td>
+              <td className="py-1 text-right">{fmtMonto(n.totalACobrarNeto, i.moneda, 2)}</td>
               <td></td>
             </tr>
           </tbody>
@@ -172,7 +188,8 @@ function SeccionBono({ b, monto, n0 }: { b: BonoInforme; monto: number; n0: numb
   );
 }
 
-export default function InformeBono({ bonos, monto, onClose }: { bonos: BonoInforme[]; monto: number; onClose: () => void }) {
+export default function InformeBono({ bonos, monto, onClose, costos: costosProp }: { bonos: BonoInforme[]; monto: number; onClose: () => void; costos?: Costos }) {
+  const costos = costosProp ?? COSTOS_DEFECTO;
   const [montado, setMontado] = useState(false);
   const [cliente, setCliente] = useState("");
   const [asesor, setAsesor] = useState("");
@@ -266,14 +283,15 @@ export default function InformeBono({ bonos, monto, onClose }: { bonos: BonoInfo
               </thead>
               <tbody>
                 {([
-                  ["TIR anual", (b: BonoInforme) => fmtNum(b.a.tir, 2, "%")],
+                  ["TIR neta", (b: BonoInforme) => { const vn = nominalNetoParaMonto(b.a, montoNum, costos); return fmtNum(aplicarCostos(b.a, vn, costos)?.tirNeta, 2, "%"); }],
+                  ["TIR bruta", (b: BonoInforme) => fmtNum(b.a.tir, 2, "%")],
                   ["Cupón", (b: BonoInforme) => (efectivo(b.i).letra ? "Letra" : fmtNum(efectivo(b.i).cupon, 3, "%"))],
                   ["Vencimiento", (b: BonoInforme) => fmtFecha(efectivo(b.i).vencimiento)],
                   ["Duration", (b: BonoInforme) => fmtNum(b.a.duration, 2, " años")],
                   ["Precio", (b: BonoInforme) => fmtNum(efectivo(b.i).precio, 2)],
-                  ["Interés por año", (b: BonoInforme) => (b.a.completo ? fmtMonto(escalar(b.a, nominalParaMonto(b.a, montoNum)).interesAnual, b.i.moneda) : "—")],
-                  ["Total a cobrar", (b: BonoInforme) => (b.a.completo ? fmtMonto(escalar(b.a, nominalParaMonto(b.a, montoNum)).totalACobrar, b.i.moneda) : "—")],
-                  ["Ganancia", (b: BonoInforme) => (b.a.completo ? `${fmtMonto(escalar(b.a, nominalParaMonto(b.a, montoNum)).ganancia, b.i.moneda)} (+${fmtNum(b.a.gananciaAlVencimiento, 1, "%")})` : "—")],
+                  ["Interés por año", (b: BonoInforme) => (b.a.completo ? fmtMonto(escalar(b.a, nominalNetoParaMonto(b.a, montoNum, costos)).interesAnual, b.i.moneda) : "—")],
+                  ["Total a cobrar (neto)", (b: BonoInforme) => { const r = aplicarCostos(b.a, nominalNetoParaMonto(b.a, montoNum, costos), costos); return r ? fmtMonto(r.totalACobrarNeto, b.i.moneda) : "—"; }],
+                  ["Ganancia neta", (b: BonoInforme) => { const r = aplicarCostos(b.a, nominalNetoParaMonto(b.a, montoNum, costos), costos); return r ? `${fmtMonto(r.gananciaNeta, b.i.moneda)} (+${fmtNum(r.gananciaNetaPct, 1, "%")})` : "—"; }],
                 ] as [string, (b: BonoInforme) => string][]).map(([l, fn]) => (
                   <tr key={l} className="border-b border-ink-border">
                     <td className="py-1 text-muted">{l}</td>
@@ -288,7 +306,7 @@ export default function InformeBono({ bonos, monto, onClose }: { bonos: BonoInfo
         {bonos.map((b, idx) => (
           <div key={b.i.isin} className={clsx("flex flex-col gap-6", idx > 0 && "break-before")}>
             {varios && <p className="font-display text-base border-l-4 border-gain pl-2">{b.i.nombre}</p>}
-            <SeccionBono b={b} monto={montoNum} n0={varios ? 2 : 1} />
+            <SeccionBono b={b} monto={montoNum} n0={varios ? 2 : 1} costos={costos} />
           </div>
         ))}
 
@@ -303,7 +321,7 @@ export default function InformeBono({ bonos, monto, onClose }: { bonos: BonoInfo
           <p>
             <strong className="text-paper">Metodología y fuentes.</strong> Precios del vector de precios BCU publicado por la Bolsa de Valores de Montevideo
             {fechaPrecios ? ` al ${fmtFecha(fechaPrecios)}` : ""}. TIR efectiva anual calculada sobre precio sucio, con cupón fijo y capital al vencimiento;
-            en instrumentos que amortizan en cuotas el resultado es aproximado. Los importes no incluyen comisiones ni impuestos y suponen que los cupones no se reinvierten.
+            en instrumentos que amortizan en cuotas el resultado es aproximado. Los importes netos descuentan comisión de compra, custodia y comisión sobre cupones según las tarifas configuradas (con IVA); no incluyen impuestos y suponen que los cupones no se reinvierten.
           </p>
           <p className="mt-1.5">
             <strong className="text-paper">Aviso.</strong> {AVISO_SIMULACION} Rendimientos pasados o proyectados no garantizan resultados futuros. Las tasas en UI o UP son reales y no incluyen inflación.

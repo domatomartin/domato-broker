@@ -31,11 +31,23 @@ function compacto(v: number) {
  * `k` = valor nominal / 100; con k=1 los importes quedan cada 100 de nominal.
  */
 export function CobrosChart({ a, k = 1, moneda = null }: { a: AnalisisBono; k?: number; moneda?: string | null }) {
-  const puntos = cobrosAcumulados(a);
+  const puntos = cobrosAcumulados(a).map((p) => ({ anios: p.anios, acumulado: p.acumulado * k }));
+  return <CobrosAcumuladosSvg puntos={puntos} inversion={a.precioSucio * k} moneda={moneda} />;
+}
+
+/** Igual que CobrosChart pero para una cartera: flujos ya en plata. */
+export function CobrosCarteraChart({ flujos, inversion, moneda = null }: { flujos: { anios: number; total: number }[]; inversion: number; moneda?: string | null }) {
+  const orden = [...flujos].sort((x, y) => x.anios - y.anios);
+  let acc = 0;
+  const puntos = orden.map((f) => ({ anios: f.anios, acumulado: (acc += f.total) }));
+  return <CobrosAcumuladosSvg puntos={puntos} inversion={inversion} moneda={moneda} />;
+}
+
+function CobrosAcumuladosSvg({ puntos, inversion, moneda }: { puntos: { anios: number; acumulado: number }[]; inversion: number; moneda: string | null }) {
   if (!puntos.length) return null;
+  const k = 1;
 
   const W = 520, H = 210, pl = 40, pr = 12, pt = 20, pb = 26;
-  const inversion = a.precioSucio * k;
   const total = puntos[puntos.length - 1].acumulado * k;
   const tMax = puntos[puntos.length - 1].anios || 1;
   const paso_ = pasoRedondo(Math.max(total, inversion) / 4);
