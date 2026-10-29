@@ -166,7 +166,7 @@ export default function BondAnalysis({
       <div>
         <div className="flex items-baseline justify-between gap-2 mb-2">
           <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted">
-            Intereses por año{m ? "" : " (cada 100 de nominal)"}
+            Intereses por año{m ? ` (${moneda})` : " (cada 100 de nominal)"}
           </p>
           <button type="button" onClick={() => setVerTabla((v) => !v)} className="text-[11px] text-muted underline hover:text-paper print:hidden">
             {verTabla ? "Ocultar detalle" : "Ver cada pago"}
@@ -175,7 +175,10 @@ export default function BondAnalysis({
         <div className="flex items-end gap-1 h-28">
           {anios.map(([y, v]) => (
             <div key={y} className="flex-1 min-w-0 flex flex-col items-center justify-end h-full" title={`${y}: ${enPlata(v.interes / k)} de interés${v.capital ? ` + ${enPlata(v.capital / k)} de capital` : ""}`}>
-              <div className="w-full rounded-t bg-gain/70" style={{ height: `${Math.max(4, (v.interes / maxInteres) * 100)}%` }} />
+              <span className="mb-0.5 text-[9px] text-muted tabular-nums whitespace-nowrap">
+                {v.interes.toLocaleString("es-UY", { maximumFractionDigits: v.interes >= 100 ? 0 : 2 })}
+              </span>
+              <div className="w-full rounded-t bg-gain/70" style={{ height: `${Math.max(4, (v.interes / maxInteres) * 80)}%` }} />
               <span className="mt-1 text-[9px] text-muted tabular-nums">{y.slice(2)}</span>
             </div>
           ))}
