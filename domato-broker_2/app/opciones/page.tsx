@@ -118,7 +118,7 @@ export default function OpcionesPage() {
         const e = efectivo(i);
         return {
           i,
-          a: analizarBono({ cupon: e.cupon, frecuencia: e.frecuencia, vencimiento: e.vencimiento, precio: i.precio }),
+          a: analizarBono({ cupon: e.cupon, frecuencia: e.frecuencia, vencimiento: e.vencimiento, precio: e.precio }),
           grupo: grupoDe(i),
           frecuenciaSupuesta: e.frecuenciaSupuesta,
         };
@@ -133,7 +133,7 @@ export default function OpcionesPage() {
         case "tir": return f.a.tir;
         case "currentYield": return f.a.currentYield;
         case "duration": return f.a.duration;
-        case "precio": return f.i.precio;
+        case "precio": return efectivo(f.i).precio;
         case "vencimiento": return efectivo(f.i).vencimiento;
         case "nombre": return f.i.nombre;
       }
@@ -228,7 +228,7 @@ export default function OpcionesPage() {
               </thead>
               <tbody>
                 {([
-                  ["Precio", (f: Fila) => fmtNum(f.i.precio, 2)],
+                  ["Precio", (f: Fila) => fmtNum(efectivo(f.i).precio, 2)],
                   ["Cupón anual", (f: Fila) => fmtNum(efectivo(f.i).cupon, 3, "%")],
                   ["Vencimiento", (f: Fila) => fmtFecha(efectivo(f.i).vencimiento)],
                   ["TIR al día", (f: Fila) => fmtNum(f.a.tir, 2, "%")],
@@ -261,7 +261,7 @@ export default function OpcionesPage() {
                 <div key={f.i.isin} className="rounded-xl border border-ink-border p-3 flex flex-col gap-2">
                   <p className="text-sm font-semibold text-paper">{f.i.nombre} <span className="font-normal text-muted">· {f.i.moneda}</span></p>
                   <BondAnalysis
-                    datos={{ cupon: e.cupon, frecuencia: e.frecuencia, vencimiento: e.vencimiento, precio: f.i.precio }}
+                    datos={{ cupon: e.cupon, frecuencia: e.frecuencia, vencimiento: e.vencimiento, precio: e.precio }}
                     analisis={f.a}
                     moneda={f.i.moneda}
                     valorNominal={f.a.completo ? nominalParaMonto(f.a, montoNum) : undefined}
@@ -378,15 +378,15 @@ function FilaTabla({
           <p className="text-[10px] text-muted truncate">{f.i.isin}{f.i.codigo && ` · ${f.i.codigo}`} · {f.grupo}</p>
         </td>
         <td className="px-2 py-1.5 text-muted">{f.i.moneda}</td>
-        <td className="px-2 py-1.5 text-right font-mono">{fmtNum(f.i.precio, 2)}</td>
-        <td className="px-2 py-1.5 text-right font-mono">{fmtNum(e.cupon, 3, "%")}</td>
+        <td className="px-2 py-1.5 text-right font-mono" title={e.letra ? `Letra a descuento: el vector publica tasa ${fmtNum(e.tasaVector, 2, "%")}` : undefined}>{fmtNum(e.precio, 2)}</td>
+        <td className="px-2 py-1.5 text-right font-mono">{e.letra ? "Letra" : fmtNum(e.cupon, 3, "%")}</td>
         <td className="px-2 py-1.5 whitespace-nowrap">{fmtFecha(e.vencimiento)}</td>
         <td className="px-2 py-1.5 text-right font-mono font-semibold text-gain">{fmtNum(f.a.tir, 2, "%")}</td>
         <td className="px-2 py-1.5 text-right font-mono">{fmtNum(f.a.currentYield, 2, "%")}</td>
         <td className="px-2 py-1.5 text-right font-mono">{fmtNum(f.a.duration, 2)}</td>
         <td className="px-2 py-1.5 text-right whitespace-nowrap">
           <button type="button" onClick={onEditar} className="text-[11px] text-muted underline hover:text-paper">
-            {f.a.completo ? (manual ? "Editar" : "Ajustar") : "Completar"}
+            {e.letra ? (f.a.completo ? "" : "Completar") : f.a.completo ? (manual ? "Editar" : "Ajustar") : "Completar"}
           </button>
         </td>
       </tr>

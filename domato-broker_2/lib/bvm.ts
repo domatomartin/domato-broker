@@ -179,12 +179,33 @@ export type DatosManuales = {
 
 export type Instrumento = InstrumentoBvm & DatosManuales & { updated_at?: string };
 
+/**
+ * Letras (LRM del BCU, Letras de Tesorería, T-bills de EE.UU.): son a descuento,
+ * sin cupón, y el vector publica la tasa de rendimiento en lugar del precio.
+ */
+export function cotizaEnTasa(i: Pick<InstrumentoBvm, "especie" | "isin">): boolean {
+  return /Regulaci.n Monetaria|Letra de Tesor/i.test(i.especie ?? "") || i.isin.startsWith("US912797");
+}
+
 /** Datos a usar: lo cargado a mano gana sobre lo que trae la BVM. */
 export function efectivo(i: Instrumento) {
+  const vencimiento = i.vencimiento_manual ?? i.vencimiento;
+  if (cotizaEnTasa(i)) {
+    // Precio implícito de una letra a descuento a partir de su tasa efectiva anual.
+    let precio: number | null = null;
+    if (i.precio != null && vencimiento) {
+      const dias = (Date.parse(vencimiento) - Date.parse(new Date().toISOString().slice(0, 10))) / 86_400_000;
+      if (dias > 0) precio = 100 / Math.pow(1 + i.precio / 100, dias / 365);
+    }
+    return { cupon: 0, vencimiento, frecuencia: 1, frecuenciaSupuesta: false, precio, tasaVector: i.precio, letra: true };
+  }
   return {
     cupon: i.cupon_manual ?? i.cupon,
-    vencimiento: i.vencimiento_manual ?? i.vencimiento,
+    vencimiento,
     frecuencia: i.frecuencia ?? 2,
     frecuenciaSupuesta: i.frecuencia == null,
+    precio: i.precio,
+    tasaVector: null as number | null,
+    letra: false,
   };
 }

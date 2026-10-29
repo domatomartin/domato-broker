@@ -78,8 +78,8 @@ export default function AddBondForm({
       moneda: i.moneda,
       cupon: e.cupon != null ? String(e.cupon) : "",
       proximo_vencimiento: e.vencimiento ?? "",
-      precio_actual: i.precio != null ? String(i.precio) : "",
-      precio_compra: v.precio_compra || (i.precio != null ? String(i.precio) : ""),
+      precio_actual: e.precio != null ? String(Number(e.precio.toFixed(4))) : "",
+      precio_compra: v.precio_compra || (e.precio != null ? String(Number(e.precio.toFixed(4))) : ""),
       cantidad: v.cantidad || "1",
       frecuencia: String(e.frecuencia),
     }));
@@ -182,7 +182,7 @@ export default function AddBondForm({
                         {i.isin} · {i.moneda}
                         {efectivo(i).cupon != null && ` · ${efectivo(i).cupon}%`}
                         {efectivo(i).vencimiento && ` · vence ${efectivo(i).vencimiento}`}
-                        {i.precio != null && ` · precio ${i.precio}`}
+                        {i.precio != null && (efectivo(i).letra ? ` · tasa ${i.precio}%` : ` · precio ${i.precio}`)}
                         {i.especie && ` · ${i.especie}`}
                       </span>
                     </button>
