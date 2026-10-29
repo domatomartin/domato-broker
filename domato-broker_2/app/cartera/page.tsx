@@ -12,18 +12,13 @@ import AddBondForm from "@/components/AddBondForm";
 import CsvImport from "@/components/CsvImport";
 import HtmlImport from "@/components/HtmlImport";
 import clsx from "clsx";
+import { listarCarteras, carteraLabel, SIN_CARTERA } from "@/lib/carteras";
 
-type CuentaFiltro = "todas" | "2191" | "2192";
+type CuentaFiltro = "todas" | string;
 type MonedaFiltro = "todas" | "USD" | "UYU" | "ARS" | "UI";
 type TipoFiltro = "todos" | "bono" | "accion";
 type OrigenFiltro = "todos" | "local" | "exterior";
 type Tasas = { UYU_per_USD: number; ARS_per_USD: number; UI_in_UYU: number; fetched_at: string };
-
-const CUENTAS: { value: CuentaFiltro; label: string }[] = [
-  { value: "todas", label: "Todas las cuentas" },
-  { value: "2191", label: "Cta. 2191 — Nelson" },
-  { value: "2192", label: "Cta. 2192 — Conjunta" },
-];
 
 function formatValorResumen(value: number, moneda: string) {
   const isosValidos = ["USD", "UYU", "ARS", "EUR", "BRL"];
@@ -152,8 +147,18 @@ export default function CarteraPage() {
     }
   }
 
+  const carteras = listarCarteras(bonds);
+  const hayBondsSinCartera = bonds.some((b) => !b.cuenta?.trim());
+  const CUENTAS: { value: CuentaFiltro; label: string }[] = [
+    { value: "todas", label: "Todas las carteras" },
+    ...carteras.map((c) => ({ value: c, label: carteraLabel(c) })),
+    ...(hayBondsSinCartera ? [{ value: SIN_CARTERA, label: carteraLabel(SIN_CARTERA) }] : []),
+  ];
+  const perteneceA = (b: Bond, c: CuentaFiltro) =>
+    c === SIN_CARTERA ? !b.cuenta?.trim() : b.cuenta === c;
+
   const bondsPorCuenta =
-    cuentaFiltro === "todas" ? bonds : bonds.filter((b) => b.cuenta === cuentaFiltro);
+    cuentaFiltro === "todas" ? bonds : bonds.filter((b) => perteneceA(b, cuentaFiltro));
 
   const countMoneda = (m: MonedaFiltro) =>
     m === "todas" ? bondsPorCuenta.length : bondsPorCuenta.filter((b) => b.moneda === m).length;
@@ -194,7 +199,7 @@ export default function CarteraPage() {
           <h1 className="font-display text-3xl text-paper">Cartera</h1>
           <p className="text-sm text-muted mt-1">
             {bondsFiltrados.length} activo{bondsFiltrados.length !== 1 ? "s" : ""}
-            {cuentaFiltro !== "todas" && ` · cuenta ${cuentaFiltro}`}
+            {cuentaFiltro !== "todas" && ` · ${carteraLabel(cuentaFiltro)}`}
           </p>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
@@ -255,7 +260,7 @@ export default function CarteraPage() {
         </div>
       )}
 
-      <div className="flex gap-1 border-b border-ink-border">
+      <div className="flex gap-1 border-b border-ink-border overflow-x-auto">
         {CUENTAS.map((c) => (
           <button
             key={c.value}
@@ -266,7 +271,7 @@ export default function CarteraPage() {
               setOrigenFiltro("todos");
             }}
             className={[
-              "px-4 py-2 text-sm font-medium transition-colors rounded-t",
+              "px-4 py-2 text-sm font-medium transition-colors rounded-t whitespace-nowrap",
               cuentaFiltro === c.value
                 ? "text-gold border-b-2 border-gold -mb-px bg-ink/20"
                 : "text-muted hover:text-paper",
@@ -275,7 +280,7 @@ export default function CarteraPage() {
             {c.label}
             {c.value !== "todas" && (
               <span className="ml-2 text-xs text-muted font-normal">
-                ({bonds.filter((b) => b.cuenta === c.value).length})
+                ({bonds.filter((b) => perteneceA(b, c.value)).length})
               </span>
             )}
           </button>
@@ -335,11 +340,15 @@ export default function CarteraPage() {
 
       {showForm && (
         <Panel title="Nuevo activo">
-          <AddBondForm onAdded={() => { load(); setShowForm(false); }} />
+          <AddBondForm
+            carteras={carteras}
+            carteraInicial={cuentaFiltro !== "todas" && cuentaFiltro !== SIN_CARTERA ? cuentaFiltro : undefined}
+            onAdded={() => { load(); setShowForm(false); }}
+          />
         </Panel>
       )}
 
-      <Panel title={cuentaFiltro === "todas" ? "Detalle de cartera" : `Cuenta ${cuentaFiltro}`}>
+      <Panel title={cuentaFiltro === "todas" ? "Detalle de cartera" : carteraLabel(cuentaFiltro)}>
         <PortfolioTable bonds={computed} onChanged={load} onSelect={(b) => setSelectedBond(b)} />
       </Panel>
 

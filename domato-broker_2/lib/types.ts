@@ -65,6 +65,7 @@ export type InvestorProfile = {
 };
 
 export const CSV_BOND_COLUMNS = [
+  "cuenta",
   "nombre",
   "codigo",
   "isin",
@@ -74,6 +75,7 @@ export const CSV_BOND_COLUMNS = [
   "precio_compra",
   "precio_actual",
   "cupon",
+  "frecuencia",
   "proximo_pago_interes",
   "proximo_vencimiento",
   "fecha_compra",

@@ -139,7 +139,7 @@ export default function HtmlImport({ onImported }: { onImported?: () => void }) 
     setLoading(true); setError(null);
     const { cuenta, bonds } = result;
     let updated = 0;
-    const noEncontrados: string[] = [];
+    let creados = 0;
 
     for (const bond of bonds) {
       const updates: Record<string, unknown> = {
@@ -155,13 +155,31 @@ export default function HtmlImport({ onImported }: { onImported?: () => void }) 
       else { query = query.eq("nombre", bond.nombre); if (cuenta) query = query.eq("cuenta", cuenta); }
       const { data, error: err } = await query.select("id");
       if (err) { setError(`Error actualizando "${bond.nombre}": ${err.message}`); setLoading(false); return; }
-      if (!data || data.length === 0) { noEncontrados.push(bond.nombre); } else { updated++; }
+      if (data && data.length > 0) { updated++; continue; }
+
+      // No existe en la cartera: lo creamos. El informe no trae precios, así que
+      // quedan en 100 (par) hasta actualizar con "↻ Precios BVM" o editarlos en la tabla.
+      const { error: insErr } = await supabase.from("bonds").insert({
+        nombre: bond.nombre,
+        isin: bond.isin,
+        moneda: bond.moneda,
+        cantidad: 1,
+        precio_compra: 100,
+        precio_actual: 100,
+        corredor: "BCE&M",
+        cuenta,
+        estado: "activo",
+        ...updates,
+      });
+      if (insErr) { setError(`Error creando "${bond.nombre}": ${insErr.message}`); setLoading(false); return; }
+      creados++;
     }
 
     setLoading(false); setResult(null);
     if (inputRef.current) inputRef.current.value = "";
-    let msg = `${updated} activo${updated !== 1 ? "s" : ""} actualizado${updated !== 1 ? "s" : ""} correctamente.`;
-    if (noEncontrados.length > 0) msg += ` No encontrados (${noEncontrados.length}): ${noEncontrados.slice(0, 3).join(", ")}${noEncontrados.length > 3 ? "…" : ""}.`;
+    let msg = `${updated} activo${updated !== 1 ? "s" : ""} actualizado${updated !== 1 ? "s" : ""}`;
+    msg += creados > 0 ? `, ${creados} creado${creados !== 1 ? "s" : ""}${cuenta ? ` en la cuenta ${cuenta}` : ""}.` : ".";
+    if (creados > 0) msg += " Los nuevos quedan con precio 100: actualizalos con ↻ Precios BVM o editá el precio de compra en la tabla.";
     setStatus(msg);
     onImported?.();
   }
@@ -224,7 +242,7 @@ export default function HtmlImport({ onImported }: { onImported?: () => void }) 
           <div className="flex gap-3">
             <button onClick={handleConfirm} disabled={loading}
               className="rounded bg-gold px-4 py-2 text-sm font-medium text-ink-bg hover:opacity-90 transition-opacity disabled:opacity-50">
-              {loading ? "Actualizando…" : "Confirmar actualización"}
+              {loading ? "Importando…" : "Confirmar importación"}
             </button>
             <button onClick={() => { setResult(null); if (inputRef.current) inputRef.current.value = ""; }}
               disabled={loading}

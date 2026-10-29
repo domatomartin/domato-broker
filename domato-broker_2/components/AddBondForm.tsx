@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { CARTERAS_BASE, carteraLabel } from "@/lib/carteras";
+
+const NUEVA_CARTERA = "__nueva__";
 
 const fields: { name: string; label: string; type: string; required?: boolean }[] = [
   { name: "nombre", label: "Nombre del bono", type: "text", required: true },
@@ -26,8 +29,18 @@ const FRECUENCIA_OPTIONS = [
   { value: "12", label: "Mensual (cada mes)" },
 ];
 
-export default function AddBondForm({ onAdded }: { onAdded?: () => void }) {
+export default function AddBondForm({
+  onAdded,
+  carteras = CARTERAS_BASE,
+  carteraInicial,
+}: {
+  onAdded?: () => void;
+  carteras?: string[];
+  carteraInicial?: string;
+}) {
   const [values, setValues] = useState<Record<string, string>>({ frecuencia: "2" });
+  const [cartera, setCartera] = useState<string>(carteraInicial ?? carteras[0] ?? NUEVA_CARTERA);
+  const [nuevaCartera, setNuevaCartera] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,6 +48,13 @@ export default function AddBondForm({ onAdded }: { onAdded?: () => void }) {
     e.preventDefault();
     setSaving(true);
     setError(null);
+
+    const cuenta = cartera === NUEVA_CARTERA ? nuevaCartera.trim() : cartera;
+    if (!cuenta) {
+      setSaving(false);
+      setError("Indicá el nombre de la nueva cartera.");
+      return;
+    }
 
     const payload = {
       nombre: values.nombre,
@@ -51,6 +71,7 @@ export default function AddBondForm({ onAdded }: { onAdded?: () => void }) {
       proximo_vencimiento: values.proximo_vencimiento || null,
       fecha_compra: values.fecha_compra || null,
       corredor: values.corredor || null,
+      cuenta,
       estado: "activo",
     };
 
@@ -63,11 +84,40 @@ export default function AddBondForm({ onAdded }: { onAdded?: () => void }) {
     }
 
     setValues({ frecuencia: "2" });
+    if (cartera === NUEVA_CARTERA) { setCartera(cuenta); setNuevaCartera(""); }
     onAdded?.();
   }
 
   return (
     <form onSubmit={handleSubmit} className="grid grid-cols-2 md:grid-cols-3 gap-3">
+      {/* Cartera / cuenta */}
+      <label className="flex flex-col gap-1 text-xs text-muted">
+        Cartera
+        <select
+          value={cartera}
+          onChange={(e) => setCartera(e.target.value)}
+          className="rounded border border-ink-border bg-ink px-2.5 py-1.5 text-sm text-paper focus:outline-none focus:ring-2 focus:ring-gold"
+        >
+          {carteras.map((c) => (
+            <option key={c} value={c}>{carteraLabel(c)}</option>
+          ))}
+          <option value={NUEVA_CARTERA}>+ Nueva cartera…</option>
+        </select>
+      </label>
+      {cartera === NUEVA_CARTERA && (
+        <label className="flex flex-col gap-1 text-xs text-muted">
+          Nombre de la nueva cartera
+          <input
+            type="text"
+            required
+            placeholder="Ej: Inversiones Martín"
+            value={nuevaCartera}
+            onChange={(e) => setNuevaCartera(e.target.value)}
+            className="rounded border border-ink-border bg-ink px-2.5 py-1.5 text-sm text-paper focus:outline-none focus:ring-2 focus:ring-gold"
+          />
+        </label>
+      )}
+
       {fields.map((f) => (
         <label key={f.name} className="flex flex-col gap-1 text-xs text-muted">
           {f.label}

@@ -33,30 +33,18 @@ export default function CsvImport({ onImported }: { onImported?: () => void }) {
           return;
         }
 
-        // Deduplicación por ISIN
-        const isinsCsv = rows.map((r) => r.isin?.trim()).filter((v): v is string => !!v);
-        let isinsDuplicados = new Set<string>();
-        if (isinsCsv.length > 0) {
-          const { data: existentes } = await supabase.from("bonds").select("isin").eq("estado", "activo").in("isin", isinsCsv);
-          isinsDuplicados = new Set((existentes ?? []).map((e) => e.isin));
-        }
-
-        // Deduplicación por nombre (para filas sin ISIN)
-        const nombresCsv = rows.filter((r) => !r.isin?.trim()).map((r) => r.nombre?.trim()).filter((v): v is string => !!v);
-        let nombresDuplicados = new Set<string>();
-        if (nombresCsv.length > 0) {
-          const { data: existentesNombre } = await supabase.from("bonds").select("nombre").eq("estado", "activo").in("nombre", nombresCsv);
-          nombresDuplicados = new Set((existentesNombre ?? []).map((e) => e.nombre));
-        }
+        // Deduplicación contra lo que ya está activo, por cartera (cuenta) + ISIN,
+        // o cartera + nombre si la fila no tiene ISIN. El mismo bono puede estar en dos carteras.
+        const { data: existentes } = await supabase
+          .from("bonds")
+          .select("isin, nombre, cuenta")
+          .eq("estado", "activo");
+        const clave = (cuenta: string | null | undefined, isin: string | null | undefined, nombre: string | null | undefined) =>
+          `${cuenta?.trim() ?? ""}|${isin?.trim() ? `isin:${isin.trim()}` : `nombre:${nombre?.trim() ?? ""}`}`;
+        const yaCargados = new Set((existentes ?? []).map((e) => clave(e.cuenta, e.isin, e.nombre)));
 
         const payload = rows
-          .filter((row) => {
-            const isin = row.isin?.trim();
-            const nombre = row.nombre?.trim();
-            if (isin && isinsDuplicados.has(isin)) return false;
-            if (!isin && nombre && nombresDuplicados.has(nombre)) return false;
-            return true;
-          })
+          .filter((row) => row.nombre?.trim() && !yaCargados.has(clave(row.cuenta, row.isin, row.nombre)))
           .map((row) => ({
             nombre: row.nombre?.trim(),
             codigo: row.codigo?.trim() || null,
@@ -67,6 +55,7 @@ export default function CsvImport({ onImported }: { onImported?: () => void }) {
             precio_compra: Number(row.precio_compra || 0),
             precio_actual: Number(row.precio_actual || row.precio_compra || 0),
             cupon: row.cupon ? Number(row.cupon) : null,
+            frecuencia: row.frecuencia?.trim() ? Number(row.frecuencia) : 2,
             proximo_pago_interes: normalizarFecha(row.proximo_pago_interes),
             proximo_vencimiento: normalizarFecha(row.proximo_vencimiento),
             fecha_compra: normalizarFecha(row.fecha_compra),
