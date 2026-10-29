@@ -7,12 +7,15 @@ export const maxDuration = 60;
 
 // GET /api/catalogo                → lista de especies a consultar
 // GET /api/catalogo?especie=<...>  → instrumentos de esa especie, normalizados
+// GET /api/catalogo?especie=todos  → vector completo (sin descripciones, pero con todos los ISIN)
 export async function GET(req: Request) {
   const especie = new URL(req.url).searchParams.get("especie");
   if (!especie) return NextResponse.json({ especies: ESPECIES_BVM });
 
   try {
-    const resp = await fetch(`${BVM_VECTOR_URL}?especie=${encodeURIComponent(especie)}`, {
+    const todos = especie === "todos";
+    const url = todos ? BVM_VECTOR_URL : `${BVM_VECTOR_URL}?especie=${encodeURIComponent(especie)}`;
+    const resp = await fetch(url, {
       headers: {
         Accept: "text/html,application/xhtml+xml,*/*",
         "User-Agent": "Mozilla/5.0 (compatible; DoMatoBroker/1.0)",
@@ -21,7 +24,7 @@ export async function GET(req: Request) {
       signal: AbortSignal.timeout(55_000),
     });
     if (!resp.ok) throw new Error(`BVM devolvió HTTP ${resp.status}`);
-    const instrumentos = parseVector(await resp.text(), especie);
+    const instrumentos = parseVector(await resp.text(), todos ? null : especie);
     return NextResponse.json({ especie, instrumentos });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

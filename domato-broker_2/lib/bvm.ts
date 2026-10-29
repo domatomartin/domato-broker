@@ -65,15 +65,29 @@ export type InstrumentoBvm = {
   fecha_precio: string | null; // YYYY-MM-DD
 };
 
-function limpiar(s: string): string {
+const ENTIDADES: Record<string, string> = {
+  nbsp: " ", amp: "&", quot: '"', apos: "'", lt: "<", gt: ">",
+  aacute: "á", eacute: "é", iacute: "í", oacute: "ó", uacute: "ú",
+  Aacute: "Á", Eacute: "É", Iacute: "Í", Oacute: "Ó", Uacute: "Ú",
+  ntilde: "ñ", Ntilde: "Ñ", uuml: "ü", Uuml: "Ü", ordm: "º", ordf: "ª", deg: "°",
+};
+
+function decodificar(s: string): string {
   return s
-    .replace(/<[^>]+>/g, "")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&#0?39;/g, "'")
-    .replace(/&quot;/g, '"')
-    .replace(/\s+/g, " ")
-    .trim();
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCharCode(parseInt(h, 16)))
+    .replace(/&([a-zA-Z]+);/g, (m, n) => ENTIDADES[n] ?? m);
+}
+
+function limpiar(s: string): string {
+  return decodificar(s.replace(/<[^>]+>/g, "")).replace(/\s+/g, " ").trim();
+}
+
+/** La BVM corta la descripción en ~40 caracteres y suele terminar en "-<ISIN o parte>". */
+function quitarIsinFinal(desc: string, isin: string): string {
+  const m = desc.match(/\s*-\s*([A-Z]{2}[A-Z0-9]*)$/);
+  if (m && isin.startsWith(m[1])) return desc.slice(0, m.index).trim();
+  return desc.replace(/[-\s]+$/, "").trim();
 }
 
 function parseNumero(s: string | undefined): number | null {
@@ -101,14 +115,14 @@ export function monedaDe(especie: string | null, isin: string): string {
   if (/EUROS|\bEU\b/.test(e)) return "EUR";
   if (/COP/.test(e)) return "COP";
 
-  // ISIN uruguayo: los caracteres 9-10 indican la moneda (UYNA00031UI9 → UI).
+  // ISIN uruguayo: los caracteres 10-11 indican la moneda (UYNA00031UI9 → UI).
   if (isin.startsWith("UY")) {
-    const sufijo = isin.slice(8, 10);
+    const sufijo = isin.slice(9, 11);
     if (sufijo === "UI") return "UI";
     if (sufijo === "US") return "USD";
     if (sufijo === "UP") return "UP";
     if (sufijo === "UR") return "UR";
-    if (sufijo === "UY") return "UYU";
+    return "UYU";
   }
   if (/^(DE|FR|IT|ES|NL|AT|BE|EU)/.test(isin)) return "EUR";
   return "USD";
@@ -135,7 +149,7 @@ export function parseVector(html: string, especie: string | null): InstrumentoBv
     if (!isin || !/^[A-Z]{2}[A-Z0-9]{9}\d$/.test(isin)) continue;
 
     const codigo = celdas[1] || null;
-    const descripcion = (celdas[3] ?? "").replace(new RegExp(`\\s*-?\\s*${isin}$`), "").trim();
+    const descripcion = quitarIsinFinal(celdas[3] ?? "", isin);
     const { cupon, vencimiento } = parseDescripcion(descripcion);
     const f = celdas[0].match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
     const precio = parseNumero(celdas[4]);

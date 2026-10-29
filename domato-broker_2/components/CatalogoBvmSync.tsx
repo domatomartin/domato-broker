@@ -30,11 +30,13 @@ export default function CatalogoBvmSync({ onSynced }: { onSynced?: () => void })
     setError(null);
     setMsg(null);
     const { especies } = (await fetch("/api/catalogo").then((r) => r.json())) as { especies: string[] };
-    const cola = [...especies];
+    // "todos" trae el vector completo: suma los ISIN que no figuran en ninguna especie.
+    const cola = ["todos", ...especies];
     const porIsin = new Map<string, InstrumentoBvm>();
     const fallidas: string[] = [];
     let hechas = 0;
-    setProgreso({ hechas, de: especies.length });
+    const total = cola.length;
+    setProgreso({ hechas, de: total });
 
     const worker = async () => {
       while (cola.length) {
@@ -53,7 +55,7 @@ export default function CatalogoBvmSync({ onSynced }: { onSynced?: () => void })
           fallidas.push(especie);
         }
         hechas++;
-        setProgreso({ hechas, de: especies.length });
+        setProgreso({ hechas, de: total });
       }
     };
     await Promise.all(Array.from({ length: PARALELO }, worker));
