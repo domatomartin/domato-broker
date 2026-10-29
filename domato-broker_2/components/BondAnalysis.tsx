@@ -3,6 +3,7 @@
 import { useState } from "react";
 import clsx from "clsx";
 import { analizarBono, escalar, type DatosBono, type AnalisisBono } from "@/lib/bondMath";
+import { CobrosChart, SensibilidadChart } from "@/components/BondCharts";
 
 const ISO = ["USD", "UYU", "ARS", "EUR", "BRL", "COP"];
 
@@ -85,18 +86,6 @@ export default function BondAnalysis({
   const caidaPct = a.durationModificada != null ? a.durationModificada : null; // % por cada 1 punto de tasa
   const cuponPorPago = a.flujos[0]?.interes ?? 0;
 
-  // Intereses por año (y el capital, que se cobra al final).
-  const porAnio = new Map<string, { interes: number; capital: number }>();
-  for (const f of a.flujos) {
-    const y = f.fecha.slice(0, 4);
-    const acc = porAnio.get(y) ?? { interes: 0, capital: 0 };
-    acc.interes += f.interes * k;
-    acc.capital += f.amortizacion * k;
-    porAnio.set(y, acc);
-  }
-  const anios = [...porAnio.entries()];
-  const maxInteres = Math.max(...anios.map(([, v]) => v.interes), 1);
-
   return (
     <div className="flex flex-col gap-5">
       {(titulo || subtitulo) && (
@@ -162,31 +151,30 @@ export default function BondAnalysis({
         </Bloque>
       </div>
 
-      {/* Flujo por año */}
-      <div>
-        <div className="flex items-baseline justify-between gap-2 mb-2">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted">
-            Intereses por año{m ? ` (${moneda})` : " (cada 100 de nominal)"}
+      {/* Gráficos */}
+      <div className="grid gap-5 lg:grid-cols-[3fr_2fr]">
+        <div>
+          <div className="flex items-baseline justify-between gap-2 mb-1">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted">
+              Lo que vas cobrando{m ? ` (${moneda})` : " (cada 100 de nominal)"}
+            </p>
+            <button type="button" onClick={() => setVerTabla((v) => !v)} className="text-[11px] text-muted underline hover:text-paper print:hidden">
+              {verTabla ? "Ocultar pagos" : "Ver cada pago"}
+            </button>
+          </div>
+          <CobrosChart a={a} k={k} moneda={m ? moneda : null} />
+          <p className="text-[11px] text-muted">
+            {a.flujos.length} cupones de {enPlata(cuponPorPago)} y el capital ({m ? fmtMonto(vn!, moneda) : "100"}) el {fmtFecha(a.flujos[a.flujos.length - 1].fecha)}.
           </p>
-          <button type="button" onClick={() => setVerTabla((v) => !v)} className="text-[11px] text-muted underline hover:text-paper print:hidden">
-            {verTabla ? "Ocultar detalle" : "Ver cada pago"}
-          </button>
         </div>
-        <div className="flex items-end gap-1 h-28">
-          {anios.map(([y, v]) => (
-            <div key={y} className="flex-1 min-w-0 flex flex-col items-center justify-end h-full" title={`${y}: ${enPlata(v.interes / k)} de interés${v.capital ? ` + ${enPlata(v.capital / k)} de capital` : ""}`}>
-              <span className="mb-0.5 text-[9px] text-muted tabular-nums whitespace-nowrap">
-                {v.interes.toLocaleString("es-UY", { maximumFractionDigits: v.interes >= 100 ? 0 : 2 })}
-              </span>
-              <div className="w-full rounded-t bg-gain/70" style={{ height: `${Math.max(4, (v.interes / maxInteres) * 80)}%` }} />
-              <span className="mt-1 text-[9px] text-muted tabular-nums">{y.slice(2)}</span>
-            </div>
-          ))}
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted mb-2">Si la tasa de mercado cambia hoy</p>
+          <SensibilidadChart a={a} k={k} moneda={m ? moneda : null} />
+          <p className="mt-2 text-[10px] text-muted">Afecta el precio si se vende antes; si se mantiene al vencimiento, los cobros no cambian.</p>
         </div>
-        <p className="mt-1 text-[11px] text-muted">
-          En {fmtFecha(a.flujos[a.flujos.length - 1].fecha)} se devuelve el capital: <span className="text-paper font-medium">{m ? fmtMonto(vn!, moneda) : "100 cada 100"}</span>.
-        </p>
+      </div>
 
+      <div>
         {verTabla && (
           <div className="mt-3 max-h-72 overflow-auto rounded-lg border border-ink-border">
             <table className="w-full text-xs tabular-nums">

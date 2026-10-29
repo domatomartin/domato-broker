@@ -204,3 +204,27 @@ export function escalar(a: AnalisisBono, valorNominal: number) {
 export function nominalParaMonto(a: AnalisisBono, monto: number): number {
   return a.precioSucio > 0 ? (monto / a.precioSucio) * 100 : 0;
 }
+
+/**
+ * Precio limpio (c/100) si la TIR de mercado cambia `deltaPb` puntos básicos hoy.
+ * Sirve para mostrar el riesgo de vender antes del vencimiento.
+ */
+export function sensibilidad(a: AnalisisBono, deltasPb: number[] = [-200, -100, -50, 0, 50, 100, 200]) {
+  if (!a.completo || a.tir == null) return [];
+  const base = a.tir / 100;
+  return deltasPb.map((d) => {
+    const tir = base + d / 10_000;
+    const sucio = precioDesdeTir(a.flujos, tir);
+    const limpio = sucio - a.interesCorrido;
+    return { deltaPb: d, tir: tir * 100, precioLimpio: limpio, variacionPct: ((sucio - a.precioSucio) / a.precioSucio) * 100 };
+  });
+}
+
+/** Cobros acumulados en el tiempo (c/100), para graficar contra lo invertido. */
+export function cobrosAcumulados(a: AnalisisBono) {
+  let acc = 0;
+  return a.flujos.map((f) => {
+    acc += f.total;
+    return { fecha: f.fecha, anios: f.anios, acumulado: acc, interesesAcumulados: acc - (f.amortizacion ? 100 : 0) };
+  });
+}

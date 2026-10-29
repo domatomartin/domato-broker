@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { Panel } from "@/components/Card";
 import BondAnalysis, { AVISO_SIMULACION, fmtFecha, fmtMonto, fmtNum } from "@/components/BondAnalysis";
 import CatalogoBvmSync from "@/components/CatalogoBvmSync";
+import InformeBono from "@/components/InformeBono";
 import { analizarBono, escalar, nominalParaMonto, type AnalisisBono } from "@/lib/bondMath";
 import { efectivo, type Instrumento } from "@/lib/bvm";
 
@@ -104,6 +105,7 @@ export default function OpcionesPage() {
   const [comparar, setComparar] = useState<string[]>([]);
   const [editando, setEditando] = useState<string | null>(null);
   const [monto, setMonto] = useState("10000");
+  const [informe, setInforme] = useState(false);
 
   async function cargar() {
     const { data } = await supabase.from("instrumentos").select("*");
@@ -190,8 +192,8 @@ export default function OpcionesPage() {
           title={`Comparación (${seleccionadas.length})`}
           action={
             <div className="flex items-center gap-3 print:hidden">
-              <button type="button" onClick={() => window.print()} className="rounded border border-ink-border px-3 py-1 text-xs text-paper hover:border-gold">
-                Imprimir / PDF
+              <button type="button" onClick={() => setInforme(true)} className="rounded bg-gold px-3 py-1.5 text-xs font-medium text-ink-panel hover:bg-gold-bright">
+                Generar informe
               </button>
               <button type="button" onClick={() => setComparar([])} className="text-xs text-muted underline">Limpiar</button>
             </div>
@@ -206,7 +208,6 @@ export default function OpcionesPage() {
               className="w-32 rounded border border-ink-border bg-ink px-2 py-1 text-sm text-paper"
             />
           </label>
-          <p className="hidden print:block text-xs text-muted">Simulación con un monto de {fmtNum(montoNum, 0)} en la moneda de cada instrumento. Fecha: {fmtFecha(new Date().toISOString().slice(0, 10))}.</p>
           {monedasMezcladas && (
             <p className="rounded bg-warn/10 px-3 py-2 text-xs text-warn">
               Estás comparando monedas distintas ({[...new Set(seleccionadas.map((f) => f.i.moneda))].join(", ")}): las tasas no se comparan directo.
@@ -233,6 +234,10 @@ export default function OpcionesPage() {
             <TablaComparacion filas={seleccionadas} monto={montoNum} />
           )}
         </Panel>
+      )}
+
+      {informe && seleccionadas.length > 0 && (
+        <InformeBono bonos={seleccionadas.map((f) => ({ i: f.i, a: f.a }))} monto={montoNum} onClose={() => setInforme(false)} />
       )}
 
       <Panel title="Catálogo">
