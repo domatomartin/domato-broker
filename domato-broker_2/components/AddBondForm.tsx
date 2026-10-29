@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { CARTERAS_BASE, carteraLabel } from "@/lib/carteras";
+import type { InstrumentoBvm } from "@/lib/bvm";
+import CatalogoBvmSync from "@/components/CatalogoBvmSync";
 
 const NUEVA_CARTERA = "__nueva__";
 
@@ -41,6 +43,45 @@ export default function AddBondForm({
   const [values, setValues] = useState<Record<string, string>>({ frecuencia: "2" });
   const [cartera, setCartera] = useState<string>(carteraInicial ?? carteras[0] ?? NUEVA_CARTERA);
   const [nuevaCartera, setNuevaCartera] = useState("");
+  const [catalogo, setCatalogo] = useState<InstrumentoBvm[]>([]);
+  const [busqueda, setBusqueda] = useState("");
+  const [elegido, setElegido] = useState<string | null>(null);
+
+  async function cargarCatalogo() {
+    const { data } = await supabase
+      .from("instrumentos")
+      .select("isin, codigo, nombre, especie, moneda, cupon, vencimiento, precio, cupon_corrido, fecha_precio")
+      .order("nombre");
+    setCatalogo((data as InstrumentoBvm[]) ?? []);
+  }
+
+  useEffect(() => { cargarCatalogo(); }, []);
+
+  const q = busqueda.trim().toLowerCase();
+  const sugerencias = q.length < 2
+    ? []
+    : catalogo
+        .filter((i) =>
+          [i.nombre, i.isin, i.codigo, i.especie].some((t) => t?.toLowerCase().includes(q))
+        )
+        .slice(0, 10);
+
+  function elegir(i: InstrumentoBvm) {
+    setValues((v) => ({
+      ...v,
+      nombre: i.nombre,
+      codigo: i.codigo ?? "",
+      isin: i.isin,
+      moneda: i.moneda,
+      cupon: i.cupon != null ? String(i.cupon) : "",
+      proximo_vencimiento: i.vencimiento ?? "",
+      precio_actual: i.precio != null ? String(i.precio) : "",
+      precio_compra: v.precio_compra || (i.precio != null ? String(i.precio) : ""),
+      cantidad: v.cantidad || "1",
+    }));
+    setElegido(i.isin);
+    setBusqueda("");
+  }
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -84,12 +125,57 @@ export default function AddBondForm({
     }
 
     setValues({ frecuencia: "2" });
+    setElegido(null);
     if (cartera === NUEVA_CARTERA) { setCartera(cuenta); setNuevaCartera(""); }
     onAdded?.();
   }
 
   return (
     <form onSubmit={handleSubmit} className="grid grid-cols-2 md:grid-cols-3 gap-3">
+      {/* Buscador en el catálogo BVM */}
+      <div className="col-span-full flex flex-col gap-2 rounded border border-ink-border/60 bg-ink/20 p-3">
+        <label className="flex flex-col gap-1 text-xs text-muted">
+          Buscar en el catálogo BVM (nombre, ISIN o código)
+          <div className="relative">
+            <input
+              type="search"
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              placeholder={catalogo.length ? "Ej: Notas UI 2030, UYNA00033UI5…" : "Catálogo vacío: actualizalo abajo"}
+              className="w-full rounded border border-ink-border bg-ink px-2.5 py-1.5 text-sm text-paper focus:outline-none focus:ring-2 focus:ring-gold"
+            />
+            {sugerencias.length > 0 && (
+              <ul className="absolute z-20 mt-1 max-h-72 w-full overflow-auto rounded border border-ink-border bg-ink shadow-lg">
+                {sugerencias.map((i) => (
+                  <li key={i.isin}>
+                    <button
+                      type="button"
+                      onClick={() => elegir(i)}
+                      className="flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left hover:bg-gold/10"
+                    >
+                      <span className="text-sm text-paper">{i.nombre}</span>
+                      <span className="text-[11px] text-muted">
+                        {i.isin} · {i.moneda}
+                        {i.cupon != null && ` · ${i.cupon}%`}
+                        {i.vencimiento && ` · vence ${i.vencimiento}`}
+                        {i.precio != null && ` · precio ${i.precio}`}
+                        {i.especie && ` · ${i.especie}`}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </label>
+        {elegido && (
+          <p className="text-xs text-gain">
+            Datos cargados desde el catálogo ({elegido}). Completá valor nominal y precio de compra, y revisá la frecuencia y el próximo pago.
+          </p>
+        )}
+        <CatalogoBvmSync onSynced={cargarCatalogo} />
+      </div>
+
       {/* Cartera / cuenta */}
       <label className="flex flex-col gap-1 text-xs text-muted">
         Cartera
