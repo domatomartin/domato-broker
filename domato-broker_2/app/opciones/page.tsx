@@ -209,7 +209,8 @@ export default function OpcionesPage() {
           <p className="hidden print:block text-xs text-muted">Simulación con un monto de {fmtNum(montoNum, 0)} en la moneda de cada instrumento. Fecha: {fmtFecha(new Date().toISOString().slice(0, 10))}.</p>
           {monedasMezcladas && (
             <p className="rounded bg-warn/10 px-3 py-2 text-xs text-warn">
-              Estás comparando monedas distintas: una TIR en UI o UP es real (sin inflación) y no se compara directo con una en USD o pesos.
+              Estás comparando monedas distintas ({[...new Set(seleccionadas.map((f) => f.i.moneda))].join(", ")}): las tasas no se comparan directo.
+              Una TIR en pesos tiene que compensar la devaluación frente al dólar, y una en UI o UP es real (sin inflación).
             </p>
           )}
 
@@ -365,6 +366,8 @@ function TablaComparacion({ filas, monto }: { filas: Fila[]; monto: number }) {
     const m = f.a.completo ? escalar(f.a, nominalParaMonto(f.a, monto)) : null;
     return { f, e, m };
   });
+  // Solo tiene sentido marcar "el mejor" si todos están en la misma moneda.
+  const mismaMoneda = new Set(filas.map((f) => f.i.moneda)).size === 1;
   const mejorTir = Math.max(...datos.map((d) => d.f.a.tir ?? -Infinity));
   const mejorGanancia = Math.max(...datos.map((d) => d.m?.ganancia ?? -Infinity));
 
@@ -439,7 +442,7 @@ function TablaComparacion({ filas, monto }: { filas: Fila[]; monto: number }) {
                       key={d.f.i.isin}
                       className={clsx(
                         "px-3 py-1.5 whitespace-nowrap",
-                        fila.destacar?.(d) && datos.length > 1 ? "font-semibold text-gain" : "text-paper"
+                        fila.destacar?.(d) && mismaMoneda ? "font-semibold text-gain" : "text-paper"
                       )}
                     >
                       {fila.valor(d)}
