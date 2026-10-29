@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { usuarioDesdeRequest } from "@/lib/authServer";
 import { computePortfolio, portfolioTotals } from "@/lib/calculations";
 import { Bond } from "@/lib/types";
 
@@ -36,6 +37,10 @@ function toUSD(valor: number, moneda: string, tasas: typeof FALLBACK_TASAS): num
 }
 
 export async function POST(request: Request) {
+  // Borra o reescribe el historial con la clave de servicio: solo para usuarios logueados.
+  if (!(await usuarioDesdeRequest(request))) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  }
   const body = await request.json();
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",

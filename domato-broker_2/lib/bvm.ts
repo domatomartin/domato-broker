@@ -195,7 +195,9 @@ export function efectivo(i: Instrumento) {
     // Precio implícito de una letra a descuento a partir de su tasa efectiva anual.
     let precio: number | null = null;
     if (i.precio != null && vencimiento) {
-      const dias = (Date.parse(vencimiento) - Date.parse(new Date().toISOString().slice(0, 10))) / 86_400_000;
+      const h = new Date();
+      const hoy = Date.UTC(h.getFullYear(), h.getMonth(), h.getDate());
+      const dias = (Date.parse(vencimiento) - hoy) / 86_400_000;
       if (dias > 0) precio = 100 / Math.pow(1 + i.precio / 100, dias / 365);
     }
     return { cupon: 0, vencimiento, frecuencia: 1, frecuenciaSupuesta: false, precio, tasaVector: i.precio, letra: true };

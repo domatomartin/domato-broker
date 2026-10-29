@@ -102,14 +102,15 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
       <Sidebar />
       <div className="flex-1 min-w-0 flex flex-col">
         <Topbar userEmail={session.user.email ?? undefined} />
-        <main className="flex-1 min-w-0">{children}</main>
+        <main className="flex-1 min-w-0 pb-16 md:pb-0 print:pb-0">{children}</main>
       </div>
+      <BottomNav />
 
       {showFAB && (
         <Link
           href="/asesor"
           title="Asesor Domato"
-          className="fixed bottom-6 right-6 z-50 rounded-full bg-gold text-ink shadow-lg flex items-center justify-center hover:bg-gold-bright transition-colors"
+          className="print:hidden fixed bottom-20 md:bottom-6 right-6 z-50 rounded-full bg-gold text-ink shadow-lg flex items-center justify-center hover:bg-gold-bright transition-colors"
           style={{ width: 52, height: 52 }}
         >
           <Bot size={22} strokeWidth={2} />

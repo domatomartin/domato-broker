@@ -124,9 +124,18 @@ export default function CarteraPage() {
         if (!bond.isin) continue;
         const dato = precios[bond.isin];
         if (dato) {
+          // En las letras (LRM del BCU, T-bills de EE.UU.) el vector publica la TASA, no el precio:
+          // se convierte a precio con los días al vencimiento.
+          let precio = dato.precio;
+          if (bond.isin.startsWith("UYLR") || bond.isin.startsWith("US912797")) {
+            if (!bond.proximo_vencimiento) { sinPrecio.push(`${bond.nombre} (letra sin vencimiento)`); continue; }
+            const dias = (Date.parse(bond.proximo_vencimiento) - Date.now()) / 86_400_000;
+            if (dias <= 0) { sinPrecio.push(`${bond.nombre} (vencida)`); continue; }
+            precio = Number((100 / Math.pow(1 + dato.precio / 100, dias / 365)).toFixed(4));
+          }
           await supabase
             .from("bonds")
-            .update({ precio_actual: dato.precio })
+            .update({ precio_actual: precio })
             .eq("id", bond.id);
           actualizados++;
         } else {

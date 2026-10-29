@@ -69,8 +69,10 @@ function restarMeses(d: Date, meses: number): Date {
   return new Date(Date.UTC(y, m, Math.min(dia, ultimo)));
 }
 
+/** Fecha de hoy en la zona horaria local (no UTC: después de las 21 h en Uruguay UTC ya es mañana). */
 export function hoyIso(): string {
-  return iso(new Date());
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 /** Fechas de pago de cupón desde el último anterior a `desde` hasta el vencimiento. */

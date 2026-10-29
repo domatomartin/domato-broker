@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { analizarBono } from "@/lib/bondMath";
+import { hoyIso, analizarBono } from "@/lib/bondMath";
 import { efectivo, type Instrumento } from "@/lib/bvm";
 import type { EjecucionItem, MetricasCartera } from "@/lib/propuesta";
 import { fmtNum } from "@/components/BondAnalysis";
@@ -28,7 +28,7 @@ export default function EjecutarCompra({
   onCancel: () => void;
   onDone: (ejecucion: EjecucionItem[], cuenta: string, fecha: string) => Promise<void>;
 }) {
-  const hoy = new Date().toISOString().slice(0, 10);
+  const hoy = hoyIso();
   const [cuenta, setCuenta] = useState(cliente || "Cliente");
   const [fecha, setFecha] = useState(hoy);
   const [filas, setFilas] = useState<Fila[]>(

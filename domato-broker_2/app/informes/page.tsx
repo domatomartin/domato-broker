@@ -136,7 +136,7 @@ export default function InformesPage() {
     try {
       const res = await fetch("/api/snapshots/manage", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token ?? ""}` },
         body: JSON.stringify({ action: "reset" }),
       });
       const data = await res.json();
@@ -161,7 +161,7 @@ export default function InformesPage() {
     try {
       const res = await fetch("/api/snapshots/manage", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token ?? ""}` },
         body: JSON.stringify({ action: "historico", fecha: histFecha, valor_total: parseFloat(histValor) }),
       });
       const data = await res.json();

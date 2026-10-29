@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import clsx from "clsx";
-import { escalar, type AnalisisBono } from "@/lib/bondMath";
+import { hoyIso, escalar, type AnalisisBono } from "@/lib/bondMath";
 import { aplicarCostos, irpfDe, nominalNetoParaMonto, COSTOS_DEFECTO, type Costos } from "@/lib/costos";
 import { efectivo, type Instrumento } from "@/lib/bvm";
 import { AVISO_SIMULACION, fmtFecha, fmtMonto, fmtNum } from "@/components/BondAnalysis";
@@ -215,7 +215,7 @@ export default function InformeBono({ bonos, monto, onClose, costos: costosProp 
   if (!montado) return null;
 
   const montoNum = Number(montoTxt.replace(/\./g, "").replace(",", ".")) || 0;
-  const hoy = new Date().toISOString().slice(0, 10);
+  const hoy = hoyIso();
   const fechaPrecios = bonos.map((b) => b.i.fecha_precio).filter(Boolean).sort().at(-1) ?? null;
   const varios = bonos.length > 1;
   const mismaMoneda = new Set(bonos.map((b) => b.i.moneda)).size === 1;

@@ -1,6 +1,6 @@
 // Propuestas de inversión: perfil del cliente, mezcla de bonos y su cálculo como cartera.
 
-import { analizarBono, tirDeFlujos, type AnalisisBono } from "@/lib/bondMath";
+import { analizarBono, hoyIso, tirDeFlujos, type AnalisisBono } from "@/lib/bondMath";
 import { aplicarCostos, irpfDe, nominalNetoParaMonto, type Costos, type ResultadoNeto } from "@/lib/costos";
 import { efectivo, grupoDe, type Grupo, type Instrumento } from "@/lib/bvm";
 
@@ -245,7 +245,7 @@ export function calcularCartera(items: ItemPropuesta[], montoTotal: number, cost
 
 export function metricasParaGuardar(m: MetricasCartera, monto: number): MetricasGuardadas {
   return {
-    fecha: new Date().toISOString().slice(0, 10),
+    fecha: hoyIso(),
     monto,
     inversionTotal: m.inversionTotal,
     tirBruta: m.tirBruta,

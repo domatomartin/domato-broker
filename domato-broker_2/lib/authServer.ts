@@ -11,3 +11,14 @@ export async function usuarioDesdeRequest(req: Request) {
   const { data, error } = await sb.auth.getUser(token);
   return error ? null : data.user ?? null;
 }
+
+/**
+ * Para rutas que corre el cron de Vercel o el usuario desde la app:
+ * vale el CRON_SECRET (Vercel lo manda como Bearer) o una sesión válida.
+ * Sin CRON_SECRET configurado, solo un usuario logueado puede llamarlas.
+ */
+export async function autorizadoCronOUsuario(req: Request) {
+  const auth = req.headers.get("authorization") ?? "";
+  if (process.env.CRON_SECRET && auth === `Bearer ${process.env.CRON_SECRET}`) return true;
+  return !!(await usuarioDesdeRequest(req));
+}

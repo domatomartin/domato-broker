@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { autorizadoCronOUsuario } from "@/lib/authServer";
 import { computePortfolio } from "@/lib/calculations";
 import { Bond } from "@/lib/types";
 import { computeBondAlerts } from "@/lib/alerts";
@@ -11,11 +12,8 @@ import { computeBondAlerts } from "@/lib/alerts";
 // FRED_API_KEY para Mercados.
 
 export async function GET(request: Request) {
-  const authHeader = request.headers.get("authorization");
-  if (
-    process.env.CRON_SECRET &&
-    authHeader !== `Bearer ${process.env.CRON_SECRET}`
-  ) {
+  // Antes quedaba abierta si no había CRON_SECRET: ahora exige el secreto del cron o un usuario logueado.
+  if (!(await autorizadoCronOUsuario(request))) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 

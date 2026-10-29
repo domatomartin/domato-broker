@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Cifra, Par, Titulo } from "@/components/InformeBono";
 import { CobrosCarteraChart } from "@/components/BondCharts";
+import { hoyIso } from "@/lib/bondMath";
 import { AVISO_SIMULACION, fmtFecha, fmtMonto, fmtNum } from "@/components/BondAnalysis";
 import TextoIA from "@/components/TextoIA";
 import { Barras } from "@/components/propuesta/ResumenCartera";
@@ -43,7 +44,7 @@ export default function InformePropuesta({
   if (!montado) return null;
 
   const moneda = perfil.moneda === "UYU" && m.monedas.length === 1 ? m.monedas[0] : perfil.moneda;
-  const hoy = new Date().toISOString().slice(0, 10);
+  const hoy = hoyIso();
   const ultimoVto = m.lineas.map((l) => l.item.vencimiento).filter(Boolean).sort().at(-1) ?? null;
   const validas = m.lineas.filter((l) => l.neto);
   const custodia = validas.reduce((s, l) => s + l.neto!.custodiaTotal, 0);

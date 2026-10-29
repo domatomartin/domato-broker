@@ -60,11 +60,24 @@ export default function CatalogoBvmSync({ onSynced }: { onSynced?: () => void })
     };
     await Promise.all(Array.from({ length: PARALELO }, worker));
 
-    const filas = [...porIsin.values()].map((i) => ({ ...i, updated_at: new Date().toISOString() }));
-    for (let i = 0; i < filas.length; i += 200) {
-      const { error: err } = await supabase.from("instrumentos").upsert(filas.slice(i, i + 200), { onConflict: "isin" });
-      if (err) { setError(`Error guardando el catálogo: ${err.message}`); setProgreso(null); return; }
+    // Los que llegaron solo del vector completo (sin especie ni descripción) no deben pisar
+    // nombre/especie/tasa ya guardados: si ya existen, se actualiza solo el precio.
+    const { data: existentes } = await supabase.from("instrumentos").select("isin");
+    const yaEstan = new Set((existentes ?? []).map((e: { isin: string }) => e.isin));
+    const ahora = new Date().toISOString();
+    const todos = [...porIsin.values()];
+    const completos = todos.filter((i) => i.especie || !yaEstan.has(i.isin)).map((i) => ({ ...i, updated_at: ahora }));
+    const soloPrecio = todos
+      .filter((i) => !i.especie && yaEstan.has(i.isin))
+      .map((i) => ({ isin: i.isin, precio: i.precio, cupon_corrido: i.cupon_corrido, fecha_precio: i.fecha_precio, updated_at: ahora }));
+
+    for (const lote of [completos, soloPrecio]) {
+      for (let i = 0; i < lote.length; i += 200) {
+        const { error: err } = await supabase.from("instrumentos").upsert(lote.slice(i, i + 200), { onConflict: "isin" });
+        if (err) { setError(`Error guardando el catálogo: ${err.message}`); setProgreso(null); return; }
+      }
     }
+    const filas = todos;
 
     setProgreso(null);
     setMsg(
