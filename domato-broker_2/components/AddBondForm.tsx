@@ -8,6 +8,7 @@ import CatalogoBvmSync from "@/components/CatalogoBvmSync";
 import BondAnalysis from "@/components/BondAnalysis";
 import { analizarBono } from "@/lib/bondMath";
 import { useCostos } from "@/lib/useCostos";
+import { irpfDe } from "@/lib/costos";
 
 const NUEVA_CARTERA = "__nueva__";
 
@@ -266,6 +267,10 @@ export default function AddBondForm({
           moneda={values.moneda || "USD"}
           valorNominal={nominalSimulacion > 0 ? nominalSimulacion : undefined}
           costos={costos}
+          irpfPct={(() => {
+            const ins = catalogo.find((c) => c.isin === values.isin);
+            return irpfDe(costos, ins ?? { isin: values.isin ?? "", especie: null });
+          })()}
         />
       </div>
 

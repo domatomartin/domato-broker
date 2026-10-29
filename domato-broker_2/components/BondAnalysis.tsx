@@ -58,6 +58,7 @@ export default function BondAnalysis({
   subtitulo,
   mostrarAviso = true,
   costos,
+  irpfPct = 0,
 }: {
   datos: DatosBono;
   moneda: string;
@@ -68,6 +69,7 @@ export default function BondAnalysis({
   mostrarAviso?: boolean;
   mostrarFlujos?: boolean;
   costos?: Costos | null;
+  irpfPct?: number;
 }) {
   const [verTabla, setVerTabla] = useState(false);
   const a = analisis ?? analizarBono(datos);
@@ -88,7 +90,8 @@ export default function BondAnalysis({
   const enPlata = (v: number) => (m ? fmtMonto(v * k, moneda) : fmtNum(v, 2));
   const caidaPct = a.durationModificada != null ? a.durationModificada : null; // % por cada 1 punto de tasa
   const cuponPorPago = a.flujos[0]?.interes ?? 0;
-  const neto = m && costos ? aplicarCostos(a, vn!, costos) : null;
+  const neto = m && costos ? aplicarCostos(a, vn!, costos, irpfPct) : null;
+  const etiquetaNeta = neto && neto.irpfPct > 0 ? "TIR neta de costos e IRPF" : "TIR neta de costos";
 
   return (
     <div className="flex flex-col gap-5">
@@ -104,9 +107,9 @@ export default function BondAnalysis({
         <div className="rounded-xl bg-gain/10 px-4 py-3">
           {neto ? (
             <>
-              <p className="text-xs text-muted">{real ? `TIR real neta (${moneda})` : "TIR neta de costos"}</p>
+              <p className="text-xs text-muted">{real ? `TIR real neta (${moneda})` : etiquetaNeta}</p>
               <p className="text-3xl font-semibold text-gain tabular-nums leading-tight">{fmtNum(neto.tirNeta, 2, "%")}</p>
-              <p className="text-[11px] text-muted">bruta {fmtNum(a.tir, 2, "%")} · costos −{fmtNum(neto.costoEnTir, 2)} pts</p>
+              <p className="text-[11px] text-muted">bruta {fmtNum(a.tir, 2, "%")} · −{fmtNum(neto.costoEnTir, 2)} pts{neto.irpfPct > 0 ? ` (IRPF ${fmtNum(neto.irpfPct, 0)}%)` : " · IRPF exonerado"}</p>
             </>
           ) : (
             <>
@@ -163,7 +166,7 @@ export default function BondAnalysis({
           />
         </Bloque>
 
-        <Bloque titulo={neto ? "Precio y costos" : "Precio"}>
+        <Bloque titulo={neto ? "Precio, costos e IRPF" : "Precio"}>
           <Dato label="Precio limpio" value={fmtNum(a.precioSucio - a.interesCorrido, 2)} hint="cada 100 de nominal" />
           <Dato label="Interés corrido" value={fmtNum(a.interesCorrido, 2)} hint="se paga al comprar" />
           <Dato label="Precio sucio" value={fmtNum(a.precioSucio, 2)} />
@@ -174,6 +177,11 @@ export default function BondAnalysis({
               <Dato label="Custodia hasta el vto." value={fmtMonto(neto.custodiaTotal, moneda)} hint="con IVA" />
               {neto.comisionCupones > 0 && <Dato label="Comisión sobre cupones" value={fmtMonto(neto.comisionCupones, moneda)} />}
               <Dato label="Costos totales" value={fmtMonto(neto.costosTotales, moneda)} hint={`${fmtNum((neto.costosTotales / neto.inversionTotal) * 100, 2, "%")} de lo invertido`} />
+              <Dato
+                label={`IRPF sobre intereses (${fmtNum(neto.irpfPct, 0)}%)`}
+                value={neto.irpfPct > 0 ? fmtMonto(neto.irpfTotal, moneda) : "Exonerado"}
+                hint={neto.irpfPct > 0 ? "retenido en cada cupón" : "deuda pública uruguaya"}
+              />
             </>
           )}
         </Bloque>

@@ -9,7 +9,7 @@ import CatalogoBvmSync from "@/components/CatalogoBvmSync";
 import InformeBono from "@/components/InformeBono";
 import CostosEditor from "@/components/CostosEditor";
 import { useCostos } from "@/lib/useCostos";
-import { aplicarCostos, nominalNetoParaMonto, type Costos } from "@/lib/costos";
+import { aplicarCostos, irpfDe, nominalNetoParaMonto, type Costos } from "@/lib/costos";
 import { analizarBono, escalar, nominalParaMonto, type AnalisisBono } from "@/lib/bondMath";
 import { efectivo, grupoDe, GRUPOS, type Grupo, type Instrumento } from "@/lib/bvm";
 
@@ -39,6 +39,7 @@ function EditorDatos({ i, onSaved, onCancel }: { i: Instrumento; onSaved: () => 
   const [cupon, setCupon] = useState(e.cupon != null ? String(e.cupon) : "");
   const [vto, setVto] = useState(e.vencimiento ?? "");
   const [frec, setFrec] = useState(String(i.frecuencia ?? 2));
+  const [irpf, setIrpf] = useState(i.irpf_manual != null ? String(i.irpf_manual) : "");
   const [err, setErr] = useState<string | null>(null);
 
   async function guardar() {
@@ -48,6 +49,7 @@ function EditorDatos({ i, onSaved, onCancel }: { i: Instrumento; onSaved: () => 
         cupon_manual: cupon.trim() === "" ? null : Number(cupon.replace(",", ".")),
         vencimiento_manual: vto || null,
         frecuencia: Number(frec),
+        irpf_manual: irpf.trim() === "" ? null : Number(irpf.replace(",", ".")),
       })
       .eq("isin", i.isin);
     if (error) setErr(error.message);
@@ -70,6 +72,9 @@ function EditorDatos({ i, onSaved, onCancel }: { i: Instrumento; onSaved: () => 
           <option value="4">Trimestral</option>
           <option value="12">Mensual</option>
         </select>
+      </label>
+      <label className="flex flex-col text-[10px] text-muted">IRPF propio %
+        <input className={clsx(input, "w-20")} value={irpf} onChange={(ev) => setIrpf(ev.target.value)} placeholder="según tipo" />
       </label>
       <button type="button" onClick={guardar} className="rounded bg-gold px-3 py-1 text-xs font-medium text-ink-panel">Guardar</button>
       <button type="button" onClick={onCancel} className="text-xs text-muted underline">Cancelar</button>
@@ -217,6 +222,7 @@ export default function OpcionesPage() {
                   moneda={f.i.moneda}
                   valorNominal={f.a.completo ? nominalNetoParaMonto(f.a, montoNum, costos) : undefined}
                   costos={costos}
+                  irpfPct={irpfDe(costos, f.i)}
                 />
               );
             })()
@@ -360,7 +366,7 @@ function TablaComparacion({ filas, monto, costos }: { filas: Fila[]; monto: numb
     const e = efectivo(f.i);
     const vn = f.a.completo ? nominalNetoParaMonto(f.a, monto, costos) : 0;
     const m = f.a.completo ? escalar(f.a, vn) : null;
-    const n = f.a.completo ? aplicarCostos(f.a, vn, costos) : null;
+    const n = f.a.completo ? aplicarCostos(f.a, vn, costos, irpfDe(costos, f.i)) : null;
     return { f, e, m, n, vn };
   });
   // Solo tiene sentido marcar "el mejor" si todos están en la misma moneda.
@@ -373,7 +379,8 @@ function TablaComparacion({ filas, monto, costos }: { filas: Fila[]; monto: numb
     {
       titulo: "Rendimiento",
       filas: [
-        { label: "TIR neta de costos", valor: (d) => fmtNum(d.n?.tirNeta, 2, "%"), destacar: (d) => d.n?.tirNeta === mejorTir },
+        { label: "TIR neta (costos e IRPF)", valor: (d) => fmtNum(d.n?.tirNeta, 2, "%"), destacar: (d) => d.n?.tirNeta === mejorTir },
+        { label: "IRPF sobre intereses", valor: (d) => (d.n ? (d.n.irpfPct > 0 ? `${fmtNum(d.n.irpfPct, 0)}%` : "Exonerado") : "—") },
         { label: "TIR bruta", valor: (d) => fmtNum(d.f.a.tir, 2, "%") },
         { label: "Rendimiento corriente", valor: (d) => (d.e.letra ? "—" : fmtNum(d.f.a.currentYield, 2, "%")) },
         { label: "Cupón anual", valor: (d) => (d.e.letra ? "Letra (sin cupón)" : fmtNum(d.e.cupon, 3, "%")) },
@@ -385,6 +392,7 @@ function TablaComparacion({ filas, monto, costos }: { filas: Fila[]; monto: numb
         { label: "Interés por año", valor: (d) => (d.m ? fmtMonto(d.m.interesAnual, d.f.i.moneda) : "—") },
         { label: "Intereses futuros", valor: (d) => (d.m ? fmtMonto(d.m.totalIntereses, d.f.i.moneda) : "—") },
         { label: "Costos del corredor", valor: (d) => (d.n ? fmtMonto(d.n.costosTotales, d.f.i.moneda) : "—") },
+        { label: "IRPF retenido", valor: (d) => (d.n ? fmtMonto(d.n.irpfTotal, d.f.i.moneda) : "—") },
         { label: "Total a cobrar (neto)", valor: (d) => (d.n ? fmtMonto(d.n.totalACobrarNeto, d.f.i.moneda) : "—") },
         {
           label: "Ganancia neta",
@@ -476,6 +484,7 @@ function TablaComparacion({ filas, monto, costos }: { filas: Fila[]; monto: numb
             moneda={abierta.f.i.moneda}
             valorNominal={abierta.f.a.completo ? abierta.vn : undefined}
             costos={costos}
+            irpfPct={irpfDe(costos, abierta.f.i)}
             mostrarAviso={false}
           />
         </div>

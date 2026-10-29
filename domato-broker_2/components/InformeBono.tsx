@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import clsx from "clsx";
 import { escalar, type AnalisisBono } from "@/lib/bondMath";
-import { aplicarCostos, nominalNetoParaMonto, COSTOS_DEFECTO, type Costos } from "@/lib/costos";
+import { aplicarCostos, irpfDe, nominalNetoParaMonto, COSTOS_DEFECTO, type Costos } from "@/lib/costos";
 import { efectivo, type Instrumento } from "@/lib/bvm";
 import { AVISO_SIMULACION, fmtFecha, fmtMonto, fmtNum } from "@/components/BondAnalysis";
 import { CobrosChart, SensibilidadChart } from "@/components/BondCharts";
@@ -53,7 +53,7 @@ function SeccionBono({ b, monto, n0, costos }: { b: BonoInforme; monto: number; 
   const e = efectivo(i);
   const vn = a.completo ? nominalNetoParaMonto(a, monto, costos) : 0;
   const m = a.completo ? escalar(a, vn) : null;
-  const n = a.completo ? aplicarCostos(a, vn, costos) : null;
+  const n = a.completo ? aplicarCostos(a, vn, costos, irpfDe(costos, i)) : null;
   const k = vn / 100;
   const real = ["UI", "UP", "UR"].includes(i.moneda);
 
@@ -77,7 +77,7 @@ function SeccionBono({ b, monto, n0, costos }: { b: BonoInforme; monto: number; 
           {e.letra
             ? ` Es una letra a descuento: no paga cupones y devuelve ${fmtMonto(vn, i.moneda)} el ${fmtFecha(e.vencimiento)}.`
             : ` Se cobrarían ${a.flujos.length} cupones ${FRECUENCIA[a.frecuencia]?.toLowerCase() ?? ""}es de ${fmtMonto(cupon, i.moneda, 2)} y el capital de ${fmtMonto(vn, i.moneda)} el ${fmtFecha(e.vencimiento)}.`}{" "}
-          Descontados los costos del corredor, el total a cobrar sería <strong>{fmtMonto(n.totalACobrarNeto, i.moneda)}</strong>, con una tasa interna de retorno neta del{" "}
+          Descontados los costos del corredor{n.irpfPct > 0 ? ` y el IRPF (${fmtNum(n.irpfPct, 0)}% sobre intereses)` : " (los intereses de deuda pública uruguaya están exonerados de IRPF)"}, el total a cobrar sería <strong>{fmtMonto(n.totalACobrarNeto, i.moneda)}</strong>, con una tasa interna de retorno neta del{" "}
           <strong>{fmtNum(n.tirNeta, 2, "%")} anual</strong>{real ? ` real en ${i.moneda}` : ""} si se mantiene hasta el vencimiento (TIR bruta {fmtNum(a.tir, 2, "%")}).
         </p>
         <div className="mt-3 grid grid-cols-4 gap-2">
@@ -112,7 +112,7 @@ function SeccionBono({ b, monto, n0, costos }: { b: BonoInforme; monto: number; 
             <Par label="Próximo pago" value={fmtFecha(a.proximoCupon)} />
           </div>
         </dl>
-        <p className="mt-3 mb-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-muted">Costos del corredor (con IVA)</p>
+        <p className="mt-3 mb-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-muted">Costos del corredor (con IVA) e impuestos</p>
         <dl className="grid grid-cols-2 gap-x-8">
           <div>
             <Par label={`Comisión de compra (${fmtNum(costos.comision_compra_pct, 2)}%)`} value={fmtMonto(n.costoCompra, i.moneda, 2)} />
@@ -120,7 +120,8 @@ function SeccionBono({ b, monto, n0, costos }: { b: BonoInforme; monto: number; 
           </div>
           <div>
             <Par label="Comisión sobre cupones" value={fmtMonto(n.comisionCupones, i.moneda, 2)} />
-            <Par label="Efecto en la TIR" value={`−${fmtNum(n.costoEnTir, 2)} puntos`} />
+            <Par label={`IRPF sobre intereses (${fmtNum(n.irpfPct, 0)}%)`} value={n.irpfPct > 0 ? fmtMonto(n.irpfTotal, i.moneda, 2) : "Exonerado"} />
+            <Par label="Efecto en la TIR (costos e IRPF)" value={`−${fmtNum(n.costoEnTir, 2)} puntos`} />
           </div>
         </dl>
       </section>
@@ -150,6 +151,7 @@ function SeccionBono({ b, monto, n0, costos }: { b: BonoInforme; monto: number; 
               <th className="text-right py-1 font-medium">Interés</th>
               <th className="text-right py-1 font-medium">Capital</th>
               <th className="text-right py-1 font-medium">Costos</th>
+              <th className="text-right py-1 font-medium">IRPF</th>
               <th className="text-right py-1 font-medium">Neto</th>
               <th className="text-right py-1 font-medium">Acumulado</th>
             </tr>
@@ -165,6 +167,7 @@ function SeccionBono({ b, monto, n0, costos }: { b: BonoInforme; monto: number; 
                     <td className="py-0.5 text-right">{fmtMonto(f.interes, i.moneda, 2)}</td>
                     <td className="py-0.5 text-right">{f.amortizacion ? fmtMonto(f.amortizacion, i.moneda, 2) : "—"}</td>
                     <td className="py-0.5 text-right text-muted">{f.costos ? `−${fmtMonto(f.costos, i.moneda, 2)}` : "—"}</td>
+                    <td className="py-0.5 text-right text-muted">{f.irpf ? `−${fmtMonto(f.irpf, i.moneda, 2)}` : "—"}</td>
                     <td className="py-0.5 text-right font-medium">{fmtMonto(f.total, i.moneda, 2)}</td>
                     <td className="py-0.5 text-right text-muted">{fmtMonto(r.acc, i.moneda, 0)}</td>
                   </tr>
@@ -178,6 +181,7 @@ function SeccionBono({ b, monto, n0, costos }: { b: BonoInforme; monto: number; 
               <td className="py-1 text-right">{fmtMonto(m.totalIntereses, i.moneda, 2)}</td>
               <td className="py-1 text-right">{fmtMonto(vn, i.moneda, 2)}</td>
               <td className="py-1 text-right">−{fmtMonto(n.custodiaTotal + n.comisionCupones, i.moneda, 2)}</td>
+              <td className="py-1 text-right">{n.irpfTotal ? `−${fmtMonto(n.irpfTotal, i.moneda, 2)}` : "—"}</td>
               <td className="py-1 text-right">{fmtMonto(n.totalACobrarNeto, i.moneda, 2)}</td>
               <td></td>
             </tr>
@@ -283,15 +287,15 @@ export default function InformeBono({ bonos, monto, onClose, costos: costosProp 
               </thead>
               <tbody>
                 {([
-                  ["TIR neta", (b: BonoInforme) => { const vn = nominalNetoParaMonto(b.a, montoNum, costos); return fmtNum(aplicarCostos(b.a, vn, costos)?.tirNeta, 2, "%"); }],
+                  ["TIR neta (costos e IRPF)", (b: BonoInforme) => { const vn = nominalNetoParaMonto(b.a, montoNum, costos); return fmtNum(aplicarCostos(b.a, vn, costos, irpfDe(costos, b.i))?.tirNeta, 2, "%"); }],
                   ["TIR bruta", (b: BonoInforme) => fmtNum(b.a.tir, 2, "%")],
                   ["Cupón", (b: BonoInforme) => (efectivo(b.i).letra ? "Letra" : fmtNum(efectivo(b.i).cupon, 3, "%"))],
                   ["Vencimiento", (b: BonoInforme) => fmtFecha(efectivo(b.i).vencimiento)],
                   ["Duration", (b: BonoInforme) => fmtNum(b.a.duration, 2, " años")],
                   ["Precio", (b: BonoInforme) => fmtNum(efectivo(b.i).precio, 2)],
                   ["Interés por año", (b: BonoInforme) => (b.a.completo ? fmtMonto(escalar(b.a, nominalNetoParaMonto(b.a, montoNum, costos)).interesAnual, b.i.moneda) : "—")],
-                  ["Total a cobrar (neto)", (b: BonoInforme) => { const r = aplicarCostos(b.a, nominalNetoParaMonto(b.a, montoNum, costos), costos); return r ? fmtMonto(r.totalACobrarNeto, b.i.moneda) : "—"; }],
-                  ["Ganancia neta", (b: BonoInforme) => { const r = aplicarCostos(b.a, nominalNetoParaMonto(b.a, montoNum, costos), costos); return r ? `${fmtMonto(r.gananciaNeta, b.i.moneda)} (+${fmtNum(r.gananciaNetaPct, 1, "%")})` : "—"; }],
+                  ["Total a cobrar (neto)", (b: BonoInforme) => { const r = aplicarCostos(b.a, nominalNetoParaMonto(b.a, montoNum, costos), costos, irpfDe(costos, b.i)); return r ? fmtMonto(r.totalACobrarNeto, b.i.moneda) : "—"; }],
+                  ["Ganancia neta", (b: BonoInforme) => { const r = aplicarCostos(b.a, nominalNetoParaMonto(b.a, montoNum, costos), costos, irpfDe(costos, b.i)); return r ? `${fmtMonto(r.gananciaNeta, b.i.moneda)} (+${fmtNum(r.gananciaNetaPct, 1, "%")})` : "—"; }],
                 ] as [string, (b: BonoInforme) => string][]).map(([l, fn]) => (
                   <tr key={l} className="border-b border-ink-border">
                     <td className="py-1 text-muted">{l}</td>
@@ -321,7 +325,7 @@ export default function InformeBono({ bonos, monto, onClose, costos: costosProp 
           <p>
             <strong className="text-paper">Metodología y fuentes.</strong> Precios del vector de precios BCU publicado por la Bolsa de Valores de Montevideo
             {fechaPrecios ? ` al ${fmtFecha(fechaPrecios)}` : ""}. TIR efectiva anual calculada sobre precio sucio, con cupón fijo y capital al vencimiento;
-            en instrumentos que amortizan en cuotas el resultado es aproximado. Los importes netos descuentan comisión de compra, custodia y comisión sobre cupones según las tarifas configuradas (con IVA); no incluyen impuestos y suponen que los cupones no se reinvierten.
+            en instrumentos que amortizan en cuotas el resultado es aproximado. Los importes netos descuentan comisión de compra, custodia y comisión sobre cupones según las tarifas configuradas (con IVA), y el IRPF retenido sobre cada pago de intereses (deuda pública uruguaya exonerada; ON y fideicomisos locales y bonos del exterior según las tasas configuradas); no incluyen impuestos y suponen que los cupones no se reinvierten.
           </p>
           <p className="mt-1.5">
             <strong className="text-paper">Aviso.</strong> {AVISO_SIMULACION} Rendimientos pasados o proyectados no garantizan resultados futuros. Las tasas en UI o UP son reales y no incluyen inflación.

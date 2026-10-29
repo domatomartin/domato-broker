@@ -41,3 +41,9 @@ create policy "authenticated only costos_config" on costos_config
   for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 create policy "authenticated only propuestas" on propuestas
   for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+
+-- IRPF sobre intereses (persona física residente).
+alter table costos_config add column if not exists irpf_soberano_pct numeric not null default 0;
+alter table costos_config add column if not exists irpf_privado_pct numeric not null default 7;
+alter table costos_config add column if not exists irpf_exterior_pct numeric not null default 12;
+alter table instrumentos add column if not exists irpf_manual numeric;

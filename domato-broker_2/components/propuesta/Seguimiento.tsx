@@ -2,7 +2,7 @@
 
 import clsx from "clsx";
 import { analizarBono, hoyIso, tirDeFlujos } from "@/lib/bondMath";
-import { aplicarCostos, type Costos } from "@/lib/costos";
+import { aplicarCostos, irpfDe, type Costos } from "@/lib/costos";
 import { efectivo, type Instrumento } from "@/lib/bvm";
 import { calcularCartera, type Propuesta, type TiposDeCambio } from "@/lib/propuesta";
 import { fmtFecha, fmtMonto, fmtNum } from "@/components/BondAnalysis";
@@ -30,7 +30,7 @@ export default function Seguimiento({ propuesta: p, costos, catalogo, fxs = {} }
     const prop = propuesta.lineas.find((l) => l.item.isin === x.isin);
     const datos = { cupon: item.cupon, frecuencia: item.frecuencia, vencimiento: item.vencimiento };
     const aEj = analizarBono({ ...datos, precio: x.precio_compra }, x.fecha);
-    const ej = aEj.completo ? aplicarCostos(aEj, x.valor_nominal, costos) : null;
+    const ej = aEj.completo ? aplicarCostos(aEj, x.valor_nominal, costos, irpfDe(costos, item)) : null;
 
     const ins = catalogo.get(x.isin);
     const precioHoy = ins ? efectivo(ins).precio : null;
@@ -153,7 +153,7 @@ export default function Seguimiento({ propuesta: p, costos, catalogo, fxs = {} }
         </table>
       </div>
       <p className="text-[10px] text-muted">
-        Resultado = valor de mercado hoy (precio sucio) + cupones cobrados netos − lo invertido con comisiones. “Esperado” capitaliza lo invertido a la TIR neta propuesta
+        Resultado = valor de mercado hoy (precio sucio) + cupones cobrados netos de costos e IRPF − lo invertido con comisiones. “Esperado” capitaliza lo invertido a la TIR neta propuesta
         desde la fecha de compra. Las variaciones de precio solo se realizan si se vende antes del vencimiento.
       </p>
     </div>

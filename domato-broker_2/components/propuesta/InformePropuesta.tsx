@@ -91,7 +91,7 @@ export default function InformePropuesta({
           <p className="text-[13px] leading-relaxed">
             Proponemos invertir <strong>{fmtMonto(m.inversionTotal, moneda)}</strong> en <strong>{m.lineas.length} instrumentos</strong> de renta fija
             operados en la Bolsa de Valores de Montevideo, diversificados por tipo de emisor y plazo. Al precio de hoy, la cartera ofrece una
-            <strong> tasa interna de retorno neta de costos del {fmtNum(m.tirNeta, 2, "%")} anual</strong>, un cobro estimado de{" "}
+            <strong> tasa interna de retorno neta de costos e IRPF del {fmtNum(m.tirNeta, 2, "%")} anual</strong>, un cobro estimado de{" "}
             {fmtMonto(m.interesAnual, moneda)} por año en cupones y un total a cobrar de <strong>{fmtMonto(m.totalACobrarNeto, moneda)}</strong>
             {ultimoVto ? ` hasta ${fmtFecha(ultimoVto)}` : ""}, si los bonos se mantienen al vencimiento.
           </p>
@@ -196,7 +196,7 @@ export default function InformePropuesta({
         </section>
 
         <section className="avoid-break">
-          <Titulo n={analisis.trim() ? 6 : 5}>Costos del corredor</Titulo>
+          <Titulo n={analisis.trim() ? 6 : 5}>Costos del corredor e impuestos</Titulo>
           <dl className="grid grid-cols-2 gap-x-8">
             <div>
               <Par label={`Comisión de compra (${fmtNum(costos.comision_compra_pct, 2)}% + IVA)`} value={fmtMonto(m.costosCompra, moneda, 2)} />
@@ -204,7 +204,8 @@ export default function InformePropuesta({
             </div>
             <div>
               <Par label="Comisión sobre cupones" value={fmtMonto(comCupones, moneda, 2)} />
-              <Par label="Efecto en la TIR" value={m.tirBruta != null && m.tirNeta != null ? `−${fmtNum(m.tirBruta - m.tirNeta, 2)} puntos` : "—"} />
+              <Par label="IRPF retenido sobre intereses" value={m.irpfTotal > 0 ? fmtMonto(m.irpfTotal, moneda, 2) : "Exonerado (deuda pública)"} />
+              <Par label="Efecto en la TIR (costos e IRPF)" value={m.tirBruta != null && m.tirNeta != null ? `−${fmtNum(m.tirBruta - m.tirNeta, 2)} puntos` : "—"} />
             </div>
           </dl>
         </section>
@@ -213,7 +214,7 @@ export default function InformePropuesta({
           <p>
             <strong className="text-paper">Metodología.</strong> Precios del vector de precios BCU publicado por la Bolsa de Valores de Montevideo. TIR efectiva anual
             calculada sobre los flujos combinados de la cartera, netos de comisión de compra, custodia y comisión sobre cupones según las tarifas
-            configuradas (con IVA). Supone cupón fijo, capital al vencimiento y cupones no reinvertidos; en bonos que amortizan en cuotas el resultado es aproximado.
+            configuradas (con IVA) y del IRPF retenido sobre cada pago de intereses (deuda pública uruguaya exonerada). Supone cupón fijo, capital al vencimiento y cupones no reinvertidos; en bonos que amortizan en cuotas el resultado es aproximado.
             Los precios de ejecución pueden diferir de los aquí utilizados. El análisis fue elaborado por el asesor con apoyo de herramientas de inteligencia artificial.
           </p>
           <p className="mt-1.5"><strong className="text-paper">Aviso.</strong> {AVISO_SIMULACION} Rendimientos proyectados no garantizan resultados futuros.</p>

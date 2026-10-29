@@ -28,7 +28,7 @@ export default function CostosEditor({
     setMsg(err ? `No se pudo guardar: ${err}` : "Guardado.");
   }
 
-  const resumen = `Compra ${fmt(costos.comision_compra_pct)}% · custodia ${fmt(costos.custodia_anual_pct)}% anual · IVA ${fmt(costos.iva_pct)}%`;
+  const resumen = `Compra ${fmt(costos.comision_compra_pct)}% · custodia ${fmt(costos.custodia_anual_pct)}% · IRPF ${fmt(costos.irpf_soberano_pct)}/${fmt(costos.irpf_privado_pct)}/${fmt(costos.irpf_exterior_pct)}%`;
 
   return (
     <div className="relative print:hidden">
@@ -38,12 +38,13 @@ export default function CostosEditor({
         className="rounded border border-ink-border px-3 py-1.5 text-xs text-paper hover:border-gold"
         title={resumen}
       >
-        Costos del corredor: <span className="text-muted">{resumen}</span>
+        Costos e IRPF: <span className="text-muted">{resumen}</span>
       </button>
       {abierto && (
         <div className="absolute right-0 z-30 mt-2 w-80 rounded-xl border border-ink-border bg-ink-panel p-4 shadow-lg">
           <p className="mb-3 text-xs text-muted">
             Se descuentan de la rentabilidad en todas las simulaciones, propuestas e informes. Cargá las tarifas reales de BCE&amp;M.
+            El IRPF se retiene sobre cada pago de intereses según el tipo de bono (se puede fijar una tasa propia por bono en Opciones de inversión).
           </p>
           <div className="flex flex-col gap-2">
             {(Object.keys(COSTOS_DEFECTO) as (keyof Costos)[]).map((k) => (

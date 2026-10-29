@@ -46,7 +46,7 @@ export default function ResumenCartera({ m, moneda }: { m: MetricasCartera; mone
   return (
     <div className="flex flex-col gap-5">
       <div className="grid gap-3 sm:grid-cols-4">
-        <Kpi label="TIR neta de la cartera" value={fmtNum(m.tirNeta, 2, "%")} sub={`bruta ${fmtNum(m.tirBruta, 2, "%")}${mezcla ? " · promedio ponderado" : ""}`} acento />
+        <Kpi label="TIR neta (costos e IRPF)" value={fmtNum(m.tirNeta, 2, "%")} sub={`bruta ${fmtNum(m.tirBruta, 2, "%")}${mezcla ? " · promedio ponderado" : ""}`} acento />
         <Kpi label="Inversión total" value={fmtMonto(m.inversionTotal, moneda)} sub={`incluye ${fmtMonto(m.costosCompra, moneda)} de comisiones`} />
         <Kpi label="Cobro anual estimado" value={fmtMonto(m.interesAnual, moneda)} sub="cupones brutos por año" />
         <Kpi label="Total a cobrar (neto)" value={fmtMonto(m.totalACobrarNeto, moneda)} sub={`ganancia ${fmtMonto(m.gananciaNeta, moneda)} · +${fmtNum(m.gananciaNetaPct, 1, "%")}`} />
@@ -63,7 +63,7 @@ export default function ResumenCartera({ m, moneda }: { m: MetricasCartera; mone
             <div><p className="text-muted">Duration promedio</p><p className="text-paper font-medium tabular-nums">{fmtNum(m.duration, 2, " años")}</p></div>
             <div><p className="text-muted">Plazo promedio</p><p className="text-paper font-medium tabular-nums">{fmtNum(m.plazoPromedio, 1, " años")}</p></div>
             <div><p className="text-muted">Costos totales</p><p className="text-paper font-medium tabular-nums">{fmtMonto(m.costosTotales, moneda)}</p></div>
-            <div><p className="text-muted">Bonos</p><p className="text-paper font-medium tabular-nums">{m.lineas.length}</p></div>
+            <div><p className="text-muted">IRPF sobre intereses</p><p className="text-paper font-medium tabular-nums">{m.irpfTotal > 0 ? fmtMonto(m.irpfTotal, moneda) : "Exonerado"}</p></div>
           </div>
         </div>
       </div>

@@ -175,6 +175,7 @@ export type DatosManuales = {
   cupon_manual?: number | null;
   vencimiento_manual?: string | null;
   frecuencia?: number | null; // pagos por año; la BVM no lo publica
+  irpf_manual?: number | null; // tasa de IRPF propia del bono (si no, la de su tipo)
 };
 
 export type Instrumento = InstrumentoBvm & DatosManuales & { updated_at?: string };

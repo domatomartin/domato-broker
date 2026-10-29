@@ -1,7 +1,7 @@
 // Propuestas de inversión: perfil del cliente, mezcla de bonos y su cálculo como cartera.
 
 import { analizarBono, tirDeFlujos, type AnalisisBono } from "@/lib/bondMath";
-import { aplicarCostos, nominalNetoParaMonto, type Costos, type ResultadoNeto } from "@/lib/costos";
+import { aplicarCostos, irpfDe, nominalNetoParaMonto, type Costos, type ResultadoNeto } from "@/lib/costos";
 import { efectivo, grupoDe, type Grupo, type Instrumento } from "@/lib/bvm";
 
 export type Riesgo = "conservador" | "moderado" | "agresivo";
@@ -48,6 +48,7 @@ export type ItemPropuesta = {
   cupon: number | null;
   vencimiento: string | null;
   frecuencia: number;
+  irpf_manual?: number | null;
   motivo?: string;
 };
 
@@ -96,6 +97,7 @@ export function itemDesdeInstrumento(i: Instrumento, peso: number, motivo?: stri
     cupon: e.cupon,
     vencimiento: e.vencimiento,
     frecuencia: e.frecuencia,
+    irpf_manual: i.irpf_manual ?? null,
     motivo,
   };
 }
@@ -117,6 +119,7 @@ export type MetricasCartera = {
   inversionTotal: number;
   costosCompra: number;
   costosTotales: number;
+  irpfTotal: number;
   totalACobrarNeto: number;
   gananciaNeta: number;
   gananciaNetaPct: number;
@@ -180,7 +183,7 @@ export function calcularCartera(items: ItemPropuesta[], montoTotal: number, cost
     const montoLocal = monto / fx;
     const a = analizarBono({ cupon: item.cupon, frecuencia: item.frecuencia, vencimiento: item.vencimiento, precio: item.precio }, fecha);
     const vn = a.completo ? nominalNetoParaMonto(a, montoLocal, costos) : 0;
-    const neto = a.completo ? aplicarCostos(a, vn, costos) : null;
+    const neto = a.completo ? aplicarCostos(a, vn, costos, irpfDe(costos, item)) : null;
     const grupo = grupoDe({ isin: item.isin, especie: item.especie } as Instrumento);
     return { item, monto, montoLocal, fx, a, vn, neto, grupo };
   });
@@ -208,7 +211,7 @@ export function calcularCartera(items: ItemPropuesta[], montoTotal: number, cost
   for (const l of validas) for (const f of l.neto!.flujosNetos) {
     const y = f.fecha.slice(0, 4);
     const acc = porAnioMap.get(y) ?? { interes: 0, capital: 0 };
-    acc.interes += (f.interes - f.costos) * l.fx;
+    acc.interes += (f.interes - f.costos - f.irpf) * l.fx;
     acc.capital += f.amortizacion * l.fx;
     porAnioMap.set(y, acc);
   }
@@ -223,6 +226,7 @@ export function calcularCartera(items: ItemPropuesta[], montoTotal: number, cost
     inversionTotal,
     costosCompra: validas.reduce((s, l) => s + l.neto!.costoCompra * l.fx, 0),
     costosTotales: validas.reduce((s, l) => s + l.neto!.costosTotales * l.fx, 0),
+    irpfTotal: validas.reduce((s, l) => s + l.neto!.irpfTotal * l.fx, 0),
     totalACobrarNeto,
     gananciaNeta,
     gananciaNetaPct: inversionTotal > 0 ? (gananciaNeta / inversionTotal) * 100 : 0,
@@ -268,7 +272,7 @@ export function candidatosPara(perfil: PerfilCliente, instrumentos: Instrumento[
     .map((i) => {
       const e = efectivo(i);
       const a = analizarBono({ cupon: e.cupon, frecuencia: e.frecuencia, vencimiento: e.vencimiento, precio: e.precio });
-      const neto = a.completo ? aplicarCostos(a, nominalNetoParaMonto(a, 10000, costos), costos) : null;
+      const neto = a.completo ? aplicarCostos(a, nominalNetoParaMonto(a, 10000, costos), costos, irpfDe(costos, i)) : null;
       return { i, a, neto };
     })
     .filter((c) => c.a.completo && c.neto?.tirNeta != null && (c.a.aniosAlVencimiento ?? 99) <= perfil.plazoMaxAnios + 0.5)
@@ -287,6 +291,7 @@ export function candidatosPara(perfil: PerfilCliente, instrumentos: Instrumento[
       plazo_anios: Number((c.a.aniosAlVencimiento ?? 0).toFixed(1)),
       tir_bruta: Number((c.a.tir ?? 0).toFixed(2)),
       tir_neta: Number((c.neto!.tirNeta ?? 0).toFixed(2)),
+      irpf_pct: irpfDe(costos, c.i),
       duration: Number((c.a.duration ?? 0).toFixed(2)),
       letra: efectivo(c.i).letra,
     }));
