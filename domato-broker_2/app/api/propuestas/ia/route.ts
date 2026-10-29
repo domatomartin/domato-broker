@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { createClient } from "@supabase/supabase-js";
+import { usuarioDesdeRequest } from "@/lib/authServer";
 import { NextRequest, NextResponse } from "next/server";
 import type { Candidato, PerfilCliente } from "@/lib/propuesta";
 
@@ -67,11 +67,7 @@ async function preguntar(prompt: string, maxTokens: number) {
 
 export async function POST(req: NextRequest) {
   // Solo usuarios logueados en la app (evita que cualquiera use la clave de la IA).
-  const token = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
-  if (!token) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-  const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL ?? "", process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "");
-  const { data: auth, error: authErr } = await sb.auth.getUser(token);
-  if (authErr || !auth?.user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  if (!(await usuarioDesdeRequest(req))) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   let body: Body;
   try {

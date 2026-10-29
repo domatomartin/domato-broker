@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { supabase } from "@/lib/supabase";
 
 interface Message {
   role: "user" | "assistant";
@@ -74,9 +75,10 @@ export default function AsesorPage() {
     setMessages([...nextMessages, assistantMsg]);
 
     try {
+      const { data: sesion } = await supabase.auth.getSession();
       const res = await fetch("/api/asesor/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${sesion.session?.access_token ?? ""}` },
         body: JSON.stringify({ messages: nextMessages }),
       });
 

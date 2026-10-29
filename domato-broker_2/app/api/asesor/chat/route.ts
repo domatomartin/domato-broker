@@ -1,11 +1,16 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest } from "next/server";
+import { usuarioDesdeRequest } from "@/lib/authServer";
 
 export const dynamic = "force-dynamic";
 
 const client = new Anthropic();
 
 export async function POST(req: NextRequest) {
+  // Solo usuarios logueados: evita que cualquiera use la clave de la IA.
+  if (!(await usuarioDesdeRequest(req))) {
+    return new Response(JSON.stringify({ error: "No autorizado" }), { status: 401, headers: { "Content-Type": "application/json" } });
+  }
   const { messages } = await req.json() as {
     messages: { role: "user" | "assistant"; content: string }[];
   };
@@ -16,7 +21,7 @@ export async function POST(req: NextRequest) {
     const host = req.headers.get("host") ?? "";
     const proto = host.startsWith("localhost") ? "http" : "https";
     const ctxResp = await fetch(`${proto}://${host}/api/asesor/context`, {
-      headers: { cookie: req.headers.get("cookie") ?? "" },
+      headers: { cookie: req.headers.get("cookie") ?? "", authorization: req.headers.get("authorization") ?? "" },
     });
     if (ctxResp.ok) {
       const ctx = await ctxResp.json();

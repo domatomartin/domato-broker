@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { usuarioDesdeRequest } from "@/lib/authServer";
 
 interface Bond {
   nombre: string; isin: string | null; moneda: string; cantidad: number;
@@ -31,7 +32,9 @@ function parLabel(p: number): string {
   return "a la par";
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  // Expone datos de la cartera: solo para usuarios logueados.
+  if (!(await usuarioDesdeRequest(req))) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!
