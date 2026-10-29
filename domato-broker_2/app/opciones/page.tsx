@@ -232,7 +232,7 @@ export default function OpcionesPage() {
                   ["Cupón anual", (f: Fila) => fmtNum(efectivo(f.i).cupon, 3, "%")],
                   ["Vencimiento", (f: Fila) => fmtFecha(efectivo(f.i).vencimiento)],
                   ["TIR al día", (f: Fila) => fmtNum(f.a.tir, 2, "%")],
-                  ["Rendimiento corriente", (f: Fila) => fmtNum(f.a.currentYield, 2, "%")],
+                  ["Rendimiento corriente", (f: Fila) => (efectivo(f.i).letra ? "— (letra)" : fmtNum(f.a.currentYield, 2, "%"))],
                   ["Duration", (f: Fila) => fmtNum(f.a.duration, 2, " años")],
                   ["Duration modificada", (f: Fila) => fmtNum(f.a.durationModificada, 2)],
                   ["Interés corrido", (f: Fila) => fmtNum(f.a.interesCorrido, 4)],
@@ -382,7 +382,7 @@ function FilaTabla({
         <td className="px-2 py-1.5 text-right font-mono">{e.letra ? "Letra" : fmtNum(e.cupon, 3, "%")}</td>
         <td className="px-2 py-1.5 whitespace-nowrap">{fmtFecha(e.vencimiento)}</td>
         <td className="px-2 py-1.5 text-right font-mono font-semibold text-gain">{fmtNum(f.a.tir, 2, "%")}</td>
-        <td className="px-2 py-1.5 text-right font-mono">{fmtNum(f.a.currentYield, 2, "%")}</td>
+        <td className="px-2 py-1.5 text-right font-mono">{e.letra ? "—" : fmtNum(f.a.currentYield, 2, "%")}</td>
         <td className="px-2 py-1.5 text-right font-mono">{fmtNum(f.a.duration, 2)}</td>
         <td className="px-2 py-1.5 text-right whitespace-nowrap">
           <button type="button" onClick={onEditar} className="text-[11px] text-muted underline hover:text-paper">
