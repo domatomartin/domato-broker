@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import clsx from "clsx";
 import { MarcoImpresion, Titulo } from "@/components/InformeBono";
@@ -45,13 +45,19 @@ export default function InformePropuesta({
 }) {
   const [montado, setMontado] = useState(false);
   // En pantallas angostas (celular) achicamos la hoja A4 para que entre entera; al imprimir vuelve a tamaño real.
+  // Se usa transform (no zoom): Safari del iPhone no escala bien el texto con zoom.
   const [escala, setEscala] = useState(1);
+  const [alto, setAlto] = useState<number | null>(null);
+  const hojaRef = useRef<HTMLElement | null>(null);
   useEffect(() => {
     const calc = () => setEscala(Math.min(1, (window.innerWidth - 16) / 794));
     calc();
     window.addEventListener("resize", calc);
-    return () => window.removeEventListener("resize", calc);
-  }, []);
+    const el = hojaRef.current;
+    const ro = el ? new ResizeObserver(() => setAlto(el.offsetHeight)) : null;
+    if (el && ro) ro.observe(el);
+    return () => { window.removeEventListener("resize", calc); ro?.disconnect(); };
+  });
 
   useEffect(() => {
     setMontado(true);
@@ -92,10 +98,14 @@ export default function InformePropuesta({
         </div>
       </div>
 
-      <div className="overflow-x-hidden print:overflow-visible">
+      <div
+        className="mx-auto my-2 sm:my-6 overflow-hidden print:my-0 print:!h-auto print:!w-auto print:overflow-visible"
+        style={{ width: 794 * escala, height: alto != null ? alto * escala : undefined }}
+      >
         <article
-          style={{ zoom: escala }}
-          className="informe mx-auto my-2 sm:my-6 w-[210mm] bg-white px-[16mm] py-[14mm] shadow-lg print:my-0 print:w-auto print:p-0 print:shadow-none text-paper">
+          ref={hojaRef}
+          style={{ transform: escala < 1 ? `scale(${escala})` : undefined, transformOrigin: "top left" }}
+          className="informe w-[794px] bg-white px-[16mm] py-[14mm] shadow-lg print:my-0 print:w-auto print:p-0 print:shadow-none text-paper">
           <MarcoImpresion
             pie={
               <>
@@ -353,7 +363,7 @@ function Kpi({ label, valor, sub, acento }: { label: string; valor: string; sub?
   return (
     <div className={clsx("kpi min-w-0 overflow-hidden rounded-lg border px-3 py-3", acento ? "border-[#1E3A5F] bg-[#1E3A5F] text-white" : "border-[#E7E9EE] bg-white")}>
       <p className={clsx("text-[8.5px] font-semibold uppercase tracking-[0.1em]", acento ? "text-white/70" : "text-muted")}>{label}</p>
-      <p className="mt-1 whitespace-nowrap text-[clamp(13px,2.4vw,18px)] font-semibold leading-tight tabular-nums print:text-[15px]">{valor}</p>
+      <p className="mt-1 whitespace-nowrap text-[17px] font-semibold leading-tight tabular-nums print:text-[15px]">{valor}</p>
       {sub && <p className={clsx("mt-0.5 text-[9px]", acento ? "text-white/70" : "text-muted")}>{sub}</p>}
     </div>
   );
