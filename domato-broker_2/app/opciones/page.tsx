@@ -144,6 +144,7 @@ export default function OpcionesPage() {
   const [plazos, setPlazos] = useState<string[]>([]);
   const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
   const [limite, setLimite] = useState(POR_PAGINA);
+  const [herramientas, setHerramientas] = useState(false);
   const [orden, setOrden] = useState<{ campo: Orden; desc: boolean }>({ campo: "tir", desc: true });
   const [comparar, setComparar] = useState<string[]>([]);
   const [editando, setEditando] = useState<string | null>(null);
@@ -238,7 +239,14 @@ export default function OpcionesPage() {
             {instrumentos[0]?.fecha_precio && ` · precios del ${fmtFecha(instrumentos[0].fecha_precio)}`}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={() => setHerramientas((v) => !v)}
+          className="sm:hidden rounded-full border border-ink-border bg-ink-panel px-3 py-1.5 text-xs text-muted"
+        >
+          {herramientas ? "Ocultar costos y catálogo" : "⚙ Costos, IRPF y catálogo"}
+        </button>
+        <div className={clsx("flex-wrap items-center gap-3", herramientas ? "flex" : "hidden sm:flex")}>
           <CostosEditor costos={costos} onGuardar={guardarCostos} />
           <CatalogoBvmSync onSynced={cargar} />
         </div>
