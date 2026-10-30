@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { efectivo, type Instrumento } from "@/lib/bvm";
 
 interface ParsedBond {
   nombre: string;
@@ -109,6 +110,40 @@ function parseHtml(html: string): ParseResult {
   return { cuenta, bonds };
 }
 
+type PrecioSugerido = { compra: string; actual: number | null; fuente: string };
+const claveDe = (b: ParsedBond) => b.isin ?? b.nombre;
+
+/**
+ * El informe de BCE&M no trae precios. Sugerimos el precio de compra así:
+ * 1) el que ya estaba cargado para ese bono en la misma cuenta (aunque esté dado de baja),
+ * 2) el precio de hoy en el catálogo BVM,
+ * 3) vacío, para que lo completes.
+ */
+async function sugerirPrecios(r: ParseResult): Promise<Record<string, PrecioSugerido>> {
+  const isins = r.bonds.map((b) => b.isin).filter((x): x is string => !!x);
+  const [{ data: previos }, { data: cat }] = await Promise.all([
+    isins.length
+      ? supabase.from("bonds").select("isin, cuenta, precio_compra, updated_at").in("isin", isins)
+      : Promise.resolve({ data: [] as { isin: string; cuenta: string | null; precio_compra: number | null }[] }),
+    isins.length
+      ? supabase.from("instrumentos").select("*").in("isin", isins)
+      : Promise.resolve({ data: [] as Instrumento[] }),
+  ]);
+  const catPor = new Map(((cat ?? []) as Instrumento[]).map((i) => [i.isin, i]));
+  const out: Record<string, PrecioSugerido> = {};
+  for (const b of r.bonds) {
+    const ins = b.isin ? catPor.get(b.isin) : undefined;
+    const actual = ins ? efectivo(ins).precio ?? null : null;
+    const previo = (previos ?? []).find(
+      (x) => x.isin === b.isin && (!r.cuenta || x.cuenta === r.cuenta) && x.precio_compra && x.precio_compra !== 100
+    );
+    if (previo?.precio_compra) out[claveDe(b)] = { compra: String(previo.precio_compra), actual, fuente: "cargado antes" };
+    else if (actual) out[claveDe(b)] = { compra: actual.toFixed(2), actual, fuente: "precio BVM de hoy" };
+    else out[claveDe(b)] = { compra: "", actual: null, fuente: "completar" };
+  }
+  return out;
+}
+
 const FREQ_LABEL: Record<number, string> = { 1: "Anual", 2: "Semestral", 4: "Trimestral", 12: "Mensual" };
 
 export default function HtmlImport({ onImported }: { onImported?: () => void }) {
@@ -117,6 +152,7 @@ export default function HtmlImport({ onImported }: { onImported?: () => void }) 
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [precios, setPrecios] = useState<Record<string, PrecioSugerido>>({});
 
   function handleFile(file: File) {
     setError(null); setStatus(null); setResult(null); setLoading(true);
@@ -125,7 +161,9 @@ export default function HtmlImport({ onImported }: { onImported?: () => void }) 
       try {
         const buffer = e.target!.result as ArrayBuffer;
         const html = new TextDecoder("windows-1252").decode(buffer);
-        setResult(parseHtml(html));
+        const r = parseHtml(html);
+        setResult(r);
+        sugerirPrecios(r).then(setPrecios).catch(() => setPrecios({}));
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : "Error al procesar el archivo");
       } finally { setLoading(false); }
@@ -138,6 +176,12 @@ export default function HtmlImport({ onImported }: { onImported?: () => void }) 
     if (!result) return;
     setLoading(true); setError(null);
     const { cuenta, bonds } = result;
+    const sinPrecio = bonds.filter((b) => !(Number((precios[claveDe(b)]?.compra ?? "").replace(",", ".")) > 0));
+    if (sinPrecio.length) {
+      setError(`Falta el precio de compra de: ${sinPrecio.map((b) => b.nombre).join(", ")}.`);
+      setLoading(false);
+      return;
+    }
     let updated = 0;
     let creados = 0;
 
@@ -157,15 +201,16 @@ export default function HtmlImport({ onImported }: { onImported?: () => void }) 
       if (err) { setError(`Error actualizando "${bond.nombre}": ${err.message}`); setLoading(false); return; }
       if (data && data.length > 0) { updated++; continue; }
 
-      // No existe en la cartera: lo creamos. El informe no trae precios, así que
-      // quedan en 100 (par) hasta actualizar con "↻ Precios BVM" o editarlos en la tabla.
+      // No existe en la cartera: lo creamos con el precio de compra confirmado en la vista previa.
+      const sug = precios[claveDe(bond)];
+      const compra = Number(sug.compra.replace(",", "."));
       const { error: insErr } = await supabase.from("bonds").insert({
         nombre: bond.nombre,
         isin: bond.isin,
         moneda: bond.moneda,
         cantidad: 1,
-        precio_compra: 100,
-        precio_actual: 100,
+        precio_compra: compra,
+        precio_actual: sug.actual ?? compra,
         corredor: "BCE&M",
         cuenta,
         estado: "activo",
@@ -179,7 +224,6 @@ export default function HtmlImport({ onImported }: { onImported?: () => void }) 
     if (inputRef.current) inputRef.current.value = "";
     let msg = `${updated} activo${updated !== 1 ? "s" : ""} actualizado${updated !== 1 ? "s" : ""}`;
     msg += creados > 0 ? `, ${creados} creado${creados !== 1 ? "s" : ""}${cuenta ? ` en la cuenta ${cuenta}` : ""}.` : ".";
-    if (creados > 0) msg += " Los nuevos quedan con precio 100: actualizalos con ↻ Precios BVM o editá el precio de compra en la tabla.";
     setStatus(msg);
     onImported?.();
   }
@@ -207,7 +251,7 @@ export default function HtmlImport({ onImported }: { onImported?: () => void }) 
       {result && result.bonds.length > 0 && (
         <div className="flex flex-col gap-3 mt-1">
           <p className="text-xs text-muted">
-            Se detectaron <span className="text-paper font-semibold">{result.bonds.length} activos</span>. Revisá los datos antes de confirmar:
+            Se detectaron <span className="text-paper font-semibold">{result.bonds.length} activos</span>. Revisá los datos y el precio de compra (cada 100 de nominal) antes de confirmar. El informe no trae precios: te sugerimos el que ya tenías cargado o el de hoy en la BVM.
           </p>
           <div className="overflow-x-auto rounded border border-ink-border/40">
             <table className="w-full text-xs border-collapse">
@@ -221,6 +265,7 @@ export default function HtmlImport({ onImported }: { onImported?: () => void }) 
                   <th className="text-left px-2 py-1.5">Frecuencia</th>
                   <th className="text-left px-2 py-1.5">Prox.Pago</th>
                   <th className="text-left px-2 py-1.5">Vencimiento</th>
+                  <th className="text-right px-2 py-1.5">Precio compra</th>
                 </tr>
               </thead>
               <tbody>
@@ -234,6 +279,19 @@ export default function HtmlImport({ onImported }: { onImported?: () => void }) 
                     <td className="px-2 py-1 text-muted">{b.frecuencia ? (FREQ_LABEL[b.frecuencia] ?? `${b.frecuencia}x/año`) : "—"}</td>
                     <td className="px-2 py-1 text-muted">{b.proximo_pago_interes ?? "—"}</td>
                     <td className="px-2 py-1 text-muted">{b.proximo_vencimiento ?? "—"}</td>
+                    <td className="px-2 py-1 text-right">
+                      <input
+                        value={precios[claveDe(b)]?.compra ?? ""}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setPrecios((p) => ({ ...p, [claveDe(b)]: { ...(p[claveDe(b)] ?? { actual: null }), compra: v, fuente: "editado" } }));
+                        }}
+                        inputMode="decimal"
+                        placeholder="c/100"
+                        className="w-20 rounded border border-ink-border bg-ink px-1.5 py-0.5 text-right text-paper tabular-nums"
+                      />
+                      <p className="text-[10px] text-muted">{precios[claveDe(b)]?.fuente ?? "…"}</p>
+                    </td>
                   </tr>
                 ))}
               </tbody>
