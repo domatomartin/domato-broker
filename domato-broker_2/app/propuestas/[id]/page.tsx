@@ -84,9 +84,9 @@ export default function PropuestaPage() {
   const setItemsS = cambiar(setItems);
   const setPerfilS = (p: Partial<PerfilCliente>) => { setPerfil((x) => ({ ...x, ...p })); setSucio(true); };
 
-  async function guardar(extra: Partial<Propuesta> = {}) {
+  async function guardar(extra: Partial<Propuesta> = {}, silencioso = false) {
     setGuardando(true);
-    setMsg(null);
+    if (!silencioso) setMsg(null);
     const fila = {
       cliente,
       asesor,
@@ -103,9 +103,18 @@ export default function PropuestaPage() {
     setProp(data as Propuesta);
     setSucio(false);
     guardarLocal("informe.asesor", asesor);
-    setMsg({ tipo: "ok", texto: "Guardado." });
+    if (!silencioso) setMsg({ tipo: "ok", texto: "Guardado." });
     return true;
   }
+
+  // Guardado automático: cualquier cambio (mezcla, perfil, análisis de la IA) se guarda solo
+  // a los 1,5 s, así no se pierde al cerrar el informe, imprimir o recargar en el celular.
+  useEffect(() => {
+    if (!sucio || cargando || guardando || ejecutada) return;
+    const t = setTimeout(() => { guardar({}, true); }, 1500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sucio, cliente, asesor, perfil, items, analisis, cargando, guardando, ejecutada]);
 
   async function token() {
     const { data } = await supabase.auth.getSession();
@@ -168,7 +177,7 @@ export default function PropuestaPage() {
       if (!r.ok) throw new Error(j.error ?? `Error ${r.status}`);
       setAnalisis(j.analisis);
       setSucio(true);
-      setMsg({ tipo: "ok", texto: "Análisis actualizado. Revisalo y guardá." });
+      setMsg({ tipo: "ok", texto: "Análisis actualizado y guardado. Revisalo antes de presentarlo." });
     } catch (e) {
       setMsg({ tipo: "error", texto: `No se pudo consultar la IA: ${e instanceof Error ? e.message : String(e)}` });
     } finally {
@@ -199,7 +208,7 @@ export default function PropuestaPage() {
             {ESTADOS[prop.estado]}
             {prop.fecha_presentada && ` · presentada el ${fmtFecha(prop.fecha_presentada.slice(0, 10))}`}
             {prop.fecha_ejecucion && ` · ejecutada el ${fmtFecha(prop.fecha_ejecucion)}`}
-            {sucio && " · cambios sin guardar"}
+            {guardando ? " · guardando…" : sucio ? " · cambios sin guardar" : " · guardado"}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -207,7 +216,7 @@ export default function PropuestaPage() {
           <button type="button" onClick={() => guardar()} disabled={guardando} className="rounded border border-ink-border px-4 py-2 text-sm text-paper hover:border-gold disabled:opacity-50">
             {guardando ? "Guardando…" : "Guardar"}
           </button>
-          <button type="button" onClick={() => setInforme(true)} disabled={!metricas.lineas.length} className="rounded border border-ink-border px-4 py-2 text-sm text-paper hover:border-gold disabled:opacity-50">
+          <button type="button" onClick={async () => { if (sucio && !ejecutada) await guardar({}, true); setInforme(true); }} disabled={!metricas.lineas.length} className="rounded border border-ink-border px-4 py-2 text-sm text-paper hover:border-gold disabled:opacity-50">
             Generar informe
           </button>
           {!ejecutada && prop.estado !== "presentada" && (
