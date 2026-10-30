@@ -21,7 +21,7 @@ import {
   FileSignature,
 } from "lucide-react";
 
-const groups: {
+export const groups: {
   label: string;
   items: { href: string; label: string; icon: typeof LayoutDashboard }[];
 }[] = [
