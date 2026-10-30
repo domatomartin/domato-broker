@@ -20,9 +20,35 @@ export function guardar(clave: string, v: string) {
   try { localStorage.setItem(clave, v); } catch { /* sin almacenamiento */ }
 }
 
+/**
+ * Marco de impresión: con @page sin márgenes (así el navegador no agrega URL, fecha ni
+ * numeración), la cabecera y el pie de esta tabla se repiten en cada hoja y hacen de margen.
+ */
+export function MarcoImpresion({ pie, children }: { pie: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <table className="w-full border-collapse">
+      <thead className="hidden print:table-header-group">
+        <tr><td><div className="h-[13mm]" /></td></tr>
+      </thead>
+      <tfoot className="hidden print:table-footer-group">
+        <tr>
+          <td>
+            <div className="mx-[16mm] flex h-[13mm] items-start justify-between border-t border-ink-border pt-2 text-[8px] tracking-wide text-muted">
+              {pie}
+            </div>
+          </td>
+        </tr>
+      </tfoot>
+      <tbody>
+        <tr><td className="align-top print:px-[16mm]">{children}</td></tr>
+      </tbody>
+    </table>
+  );
+}
+
 export function Titulo({ n, children }: { n: number; children: React.ReactNode }) {
   return (
-    <h3 className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-paper border-b border-paper/80 pb-1 mb-3">
+    <h3 className="titulo-informe flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-paper border-b border-paper/80 pb-1 mb-3">
       <span className="text-muted">{String(n).padStart(2, "0")}</span>
       {children}
     </h3>
@@ -250,7 +276,9 @@ export default function InformeBono({ bonos, monto, onClose, costos: costosProp 
       </div>
 
       {/* Documento */}
-      <article className="informe mx-auto my-6 max-w-[210mm] bg-white px-[14mm] py-[12mm] shadow-lg print:my-0 print:max-w-none print:p-0 print:shadow-none flex flex-col gap-6 text-paper">
+      <article className="informe mx-auto my-6 max-w-[210mm] bg-white px-[14mm] py-[12mm] shadow-lg print:my-0 print:max-w-none print:p-0 print:shadow-none text-paper">
+        <MarcoImpresion pie={<><span>Domato · Gestión patrimonial · Informe de bonos</span><span>{fmtFecha(hoyIso())} · Confidencial</span></>}>
+        <div className="flex flex-col gap-6">
         <header className="flex items-start justify-between gap-6 border-b-2 border-paper pb-4">
           <div className="flex items-center gap-3">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -332,6 +360,8 @@ export default function InformeBono({ bonos, monto, onClose, costos: costosProp 
           </p>
           <p className="mt-1.5">Domato · Gestión patrimonial</p>
         </footer>
+        </div>
+        </MarcoImpresion>
       </article>
     </div>,
     document.body

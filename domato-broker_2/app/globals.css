@@ -56,11 +56,14 @@ body {
 
 /* Informe para clientes: al imprimir solo sale el documento, en A4. */
 @media print {
-  @page { size: A4; margin: 14mm 12mm; }
+  /* Sin márgenes de página: el navegador no imprime URL/fecha; los márgenes los da MarcoImpresion. */
+  @page { size: A4; margin: 0; }
   html, body { background: #fff !important; }
   body.informe-abierto > *:not(#informe-root) { display: none !important; }
   body.informe-abierto #informe-root { position: static !important; overflow: visible !important; }
   .informe { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .informe .break-before { break-before: page; }
   .informe .avoid-break { break-inside: avoid; }
+  .informe .titulo-informe { break-after: avoid; }
+  .informe tr, .informe .kpi { break-inside: avoid; }
 }
