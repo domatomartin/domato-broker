@@ -142,7 +142,7 @@ export default function PropuestaPage() {
         .filter((x): x is ItemPropuesta => !!x);
       setItemsS(nuevos);
       if (j.analisis) { setAnalisis(j.analisis); setSucio(true); }
-      setMsg({ tipo: "ok", texto: `La IA propuso ${nuevos.length} bonos. Revisá la mezcla y guardá.` });
+      setMsg({ tipo: "ok", texto: `La IA propuso ${nuevos.length} bonos. Ya quedó guardada; revisá la mezcla.` });
     } catch (e) {
       setMsg({ tipo: "error", texto: `No se pudo consultar la IA: ${e instanceof Error ? e.message : String(e)}` });
     } finally {
