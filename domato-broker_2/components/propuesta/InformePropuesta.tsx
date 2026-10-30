@@ -44,6 +44,14 @@ export default function InformePropuesta({
   onClose: () => void;
 }) {
   const [montado, setMontado] = useState(false);
+  // En pantallas angostas (celular) achicamos la hoja A4 para que entre entera; al imprimir vuelve a tamaño real.
+  const [escala, setEscala] = useState(1);
+  useEffect(() => {
+    const calc = () => setEscala(Math.min(1, (window.innerWidth - 16) / 794));
+    calc();
+    window.addEventListener("resize", calc);
+    return () => window.removeEventListener("resize", calc);
+  }, []);
 
   useEffect(() => {
     setMontado(true);
@@ -74,7 +82,7 @@ export default function InformePropuesta({
     <div id="informe-root" className="fixed inset-0 z-[100] overflow-auto bg-ink print:bg-white">
       <div className="print:hidden sticky top-0 z-10 border-b border-ink-border bg-ink-panel/95 backdrop-blur px-4 py-3">
         <div className="mx-auto flex max-w-[210mm] flex-wrap items-center gap-3">
-          <p className="text-sm text-muted">Vista previa. Revisá los datos y el análisis antes de imprimir.</p>
+          <p className="hidden sm:block text-sm text-muted">Vista previa. Revisá los datos y el análisis antes de imprimir.</p>
           <div className="ml-auto flex gap-2">
             <button type="button" onClick={() => window.print()} className="rounded bg-gold px-4 py-2 text-sm font-medium text-white hover:bg-gold-bright">
               Imprimir / Guardar PDF
@@ -84,8 +92,10 @@ export default function InformePropuesta({
         </div>
       </div>
 
-      <div className="overflow-x-auto print:overflow-visible">
-        <article className="informe mx-auto my-6 w-[210mm] bg-white px-[16mm] py-[14mm] shadow-lg print:my-0 print:w-auto print:p-0 print:shadow-none text-paper">
+      <div className="overflow-x-hidden print:overflow-visible">
+        <article
+          style={{ zoom: escala }}
+          className="informe mx-auto my-2 sm:my-6 w-[210mm] bg-white px-[16mm] py-[14mm] shadow-lg print:my-0 print:w-auto print:p-0 print:shadow-none text-paper">
           <MarcoImpresion
             pie={
               <>
@@ -144,63 +154,53 @@ export default function InformePropuesta({
               {/* ─── Composición ─── */}
               <section>
                 <Titulo n={sec()}>Composición propuesta</Titulo>
-                <table className="w-full table-fixed text-[10.5px] tabular-nums">
-                  <colgroup>
-                    <col className="w-[34%]" />
-                    <col className="w-[13%]" />
-                    <col className="w-[13%]" />
-                    <col className="w-[8%]" />
-                    <col className="w-[8%]" />
-                    <col className="w-[10%]" />
-                    <col className="w-[8%]" />
-                    <col className="w-[6%]" />
-                  </colgroup>
+                <table className="w-full text-[10px] tabular-nums">
                   <thead>
                     <tr className="bg-[#1E3A5F] text-[9px] uppercase tracking-[0.06em] text-white">
-                      <th className="px-2 py-1.5 text-left font-semibold">Instrumento</th>
-                      <th className="px-2 py-1.5 text-left font-semibold">Peso</th>
-                      <th className="px-2 py-1.5 text-right font-semibold">Monto</th>
-                      <th className="px-2 py-1.5 text-right font-semibold">Precio</th>
-                      <th className="px-2 py-1.5 text-right font-semibold">Cupón</th>
-                      <th className="px-2 py-1.5 text-right font-semibold">Vence</th>
-                      <th className="px-2 py-1.5 text-right font-semibold">TIR neta</th>
-                      <th className="px-2 py-1.5 text-right font-semibold">Dur.</th>
+                      <th className="whitespace-nowrap px-1.5 py-1.5 text-left font-semibold">Instrumento</th>
+                      <th className="whitespace-nowrap px-1.5 py-1.5 text-left font-semibold">Peso</th>
+                      <th className="whitespace-nowrap px-1.5 py-1.5 text-right font-semibold">Monto</th>
+                      <th className="whitespace-nowrap px-1.5 py-1.5 text-right font-semibold">Precio</th>
+                      <th className="whitespace-nowrap px-1.5 py-1.5 text-right font-semibold">Cupón</th>
+                      <th className="whitespace-nowrap px-1.5 py-1.5 text-right font-semibold">Vence</th>
+                      <th className="whitespace-nowrap px-1.5 py-1.5 text-right font-semibold">TIR neta</th>
+                      <th className="whitespace-nowrap px-1.5 py-1.5 text-right font-semibold">Dur.</th>
                     </tr>
                   </thead>
                   <tbody>
                     {m.lineas.map((l, idx) => (
                       <tr key={l.item.isin} className={clsx("border-b border-[#E7E9EE]", idx % 2 === 1 && "bg-[#FAFBFC]")}>
-                        <td className="px-2 py-2">
+                        <td className="px-1.5 py-2">
                           <p className="font-semibold leading-snug">{limpiarNombre(l.item.nombre)}</p>
                           <p className="mt-0.5 flex items-center gap-1.5 text-[9px] text-muted">
                             <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: COLOR_GRUPO[l.grupo] ?? "#94A3B8" }} />
                             {l.grupo} · {l.item.isin}
                           </p>
                         </td>
-                        <td className="px-2 py-2">
+                        <td className="w-[13%] px-1.5 py-2">
                           <p className="font-medium">{fmtNum(l.item.peso, 1, "%")}</p>
                           <div className="mt-1 h-1 w-full rounded-full bg-[#E7E9EE]">
                             <div className="h-1 rounded-full bg-[#2563EB]" style={{ width: `${Math.min(100, l.item.peso)}%` }} />
                           </div>
                         </td>
-                        <td className="px-2 py-2 text-right whitespace-nowrap">
+                        <td className="whitespace-nowrap px-1.5 py-2 text-right whitespace-nowrap">
                           {fmtMonto(l.montoLocal, l.item.moneda)}
                           {l.fx !== 1 && <span className="block text-[9px] text-muted">≈ {fmtMonto(l.monto, moneda)}</span>}
                         </td>
-                        <td className="px-2 py-2 text-right">{fmtNum(l.item.precio, 2)}</td>
-                        <td className="px-2 py-2 text-right">{l.item.cupon ? fmtNum(l.item.cupon, 2, "%") : "—"}</td>
-                        <td className="px-2 py-2 text-right whitespace-nowrap">{fmtFecha(l.item.vencimiento)}</td>
-                        <td className="px-2 py-2 text-right font-semibold" style={{ color: VERDE }}>{fmtNum(l.neto?.tirNeta, 2, "%")}</td>
-                        <td className="px-2 py-2 text-right">{fmtNum(l.a.duration, 1)}</td>
+                        <td className="whitespace-nowrap px-1.5 py-2 text-right">{fmtNum(l.item.precio, 2)}</td>
+                        <td className="whitespace-nowrap px-1.5 py-2 text-right">{l.item.cupon ? fmtNum(l.item.cupon, 2, "%") : "—"}</td>
+                        <td className="whitespace-nowrap px-1.5 py-2 text-right whitespace-nowrap">{fmtFecha(l.item.vencimiento)}</td>
+                        <td className="whitespace-nowrap px-1.5 py-2 text-right font-semibold" style={{ color: VERDE }}>{fmtNum(l.neto?.tirNeta, 2, "%")}</td>
+                        <td className="whitespace-nowrap px-1.5 py-2 text-right">{fmtNum(l.a.duration, 1)}</td>
                       </tr>
                     ))}
                     <tr className="border-t-2 border-[#1E3A5F] font-semibold">
                       <td className="px-2 py-2">Total cartera</td>
                       <td className="px-2 py-2">{fmtNum(m.pesoTotal, 0, "%")}</td>
-                      <td className="px-2 py-2 text-right whitespace-nowrap">{fmtMonto(m.lineas.reduce((s, l) => s + l.monto, 0), moneda)}</td>
+                      <td className="whitespace-nowrap px-1.5 py-2 text-right whitespace-nowrap">{fmtMonto(m.lineas.reduce((s, l) => s + l.monto, 0), moneda)}</td>
                       <td colSpan={3}></td>
-                      <td className="px-2 py-2 text-right" style={{ color: VERDE }}>{fmtNum(m.tirNeta, 2, "%")}</td>
-                      <td className="px-2 py-2 text-right">{fmtNum(m.duration, 1)}</td>
+                      <td className="whitespace-nowrap px-1.5 py-2 text-right" style={{ color: VERDE }}>{fmtNum(m.tirNeta, 2, "%")}</td>
+                      <td className="whitespace-nowrap px-1.5 py-2 text-right">{fmtNum(m.duration, 1)}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -351,9 +351,9 @@ function Campo({ label, valor }: { label: string; valor: string }) {
 
 function Kpi({ label, valor, sub, acento }: { label: string; valor: string; sub?: string; acento?: boolean }) {
   return (
-    <div className={clsx("kpi rounded-lg border px-3.5 py-3", acento ? "border-[#1E3A5F] bg-[#1E3A5F] text-white" : "border-[#E7E9EE] bg-white")}>
+    <div className={clsx("kpi min-w-0 overflow-hidden rounded-lg border px-3 py-3", acento ? "border-[#1E3A5F] bg-[#1E3A5F] text-white" : "border-[#E7E9EE] bg-white")}>
       <p className={clsx("text-[8.5px] font-semibold uppercase tracking-[0.1em]", acento ? "text-white/70" : "text-muted")}>{label}</p>
-      <p className="mt-1 text-[19px] font-semibold leading-tight tabular-nums">{valor}</p>
+      <p className="mt-1 whitespace-nowrap text-[clamp(13px,2.4vw,18px)] font-semibold leading-tight tabular-nums print:text-[15px]">{valor}</p>
       {sub && <p className={clsx("mt-0.5 text-[9px]", acento ? "text-white/70" : "text-muted")}>{sub}</p>}
     </div>
   );

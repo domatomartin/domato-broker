@@ -33,14 +33,14 @@ export function MarcoImpresion({ pie, children }: { pie: React.ReactNode; childr
       <tfoot className="hidden print:table-footer-group">
         <tr>
           <td>
-            <div className="mx-[16mm] flex h-[13mm] items-start justify-between border-t border-ink-border pt-2 text-[8px] tracking-wide text-muted">
+            <div className="mx-[10mm] flex h-[13mm] items-start justify-between border-t border-ink-border pt-2 text-[8px] tracking-wide text-muted">
               {pie}
             </div>
           </td>
         </tr>
       </tfoot>
       <tbody>
-        <tr><td className="align-top print:px-[16mm]">{children}</td></tr>
+        <tr><td className="align-top print:px-[10mm]">{children}</td></tr>
       </tbody>
     </table>
   );

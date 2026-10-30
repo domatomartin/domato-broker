@@ -61,7 +61,7 @@ body {
   html, body { background: #fff !important; }
   body.informe-abierto > *:not(#informe-root) { display: none !important; }
   body.informe-abierto #informe-root { position: static !important; overflow: visible !important; }
-  .informe { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .informe { -webkit-print-color-adjust: exact; print-color-adjust: exact; zoom: 1 !important; }
   .informe .break-before { break-before: page; }
   .informe .avoid-break { break-inside: avoid; }
   .informe .titulo-informe { break-after: avoid; }
