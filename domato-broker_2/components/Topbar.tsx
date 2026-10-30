@@ -38,6 +38,9 @@ export default function Topbar({ userEmail }: { userEmail?: string }) {
             >
               <LogOut size={10} /> Cerrar sesión
             </button>
+            <a href="/cuenta/clave" className="text-[11px] text-muted hover:text-paper transition-colors">
+              Cambiar contraseña
+            </a>
           </div>
         </div>
       </div>

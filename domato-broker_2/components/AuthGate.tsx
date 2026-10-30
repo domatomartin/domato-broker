@@ -59,9 +59,11 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     setSigningIn(false);
     if (error) { setError(`No se pudo cambiar: ${error.message}`); return; }
     setRecuperando(false); setNueva(""); setNueva2("");
+    if (pathname === "/cuenta/clave") window.location.href = "/dashboard";
   }
 
-  if (session && session !== "loading" && recuperando) {
+  const cambiando = recuperando || pathname === "/cuenta/clave";
+  if (session && session !== "loading" && cambiando) {
     const campo = "rounded border border-ink-border bg-ink px-3 py-2.5 text-sm text-paper focus:outline-none focus:ring-2 focus:ring-gold";
     return (
       <div className="min-h-screen flex items-center justify-center bg-ink px-4">
