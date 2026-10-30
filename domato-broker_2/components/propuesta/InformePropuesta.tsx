@@ -114,7 +114,7 @@ export default function InformePropuesta({
               </>
             }
           >
-            <div className="flex flex-col gap-7 text-[11.5px] leading-relaxed">
+            <div className="space-y-7 text-[11.5px] leading-relaxed">
               {/* ─── Encabezado ─── */}
               <header className="flex items-end justify-between gap-6 border-b-[3px] border-[#1E3A5F] pb-4">
                 <div className="flex items-center gap-3">
@@ -164,7 +164,7 @@ export default function InformePropuesta({
               {/* ─── Composición ─── */}
               <section>
                 <Titulo n={sec()}>Composición propuesta</Titulo>
-                <div className="text-[10px] tabular-nums">
+                <div className="avoid-break text-[10px] tabular-nums">
                   <div className="grid grid-cols-[minmax(0,2.5fr)_0.9fr_1.05fr_0.65fr_0.65fr_0.95fr_0.75fr_0.5fr] items-center gap-x-1 rounded-t bg-[#1E3A5F] px-2 py-1.5 text-center text-[8.5px] font-semibold uppercase tracking-[0.06em] text-white">
                     <span className="text-left">Instrumento</span>
                     <span>Peso</span>
@@ -278,7 +278,7 @@ export default function InformePropuesta({
               {conAnalisis && (
                 <section className="break-before">
                   <Titulo n={sec()}>Análisis y fundamentos</Titulo>
-                  <div className="text-[#2B3240]">
+                  <div className="texto-informe text-[#2B3240]">
                     <TextoIA texto={analisis} compacto />
                   </div>
                 </section>

@@ -66,4 +66,7 @@ body {
   .informe .break-before { break-before: page; page-break-before: always; }
   .informe .avoid-break, .informe .fila-informe, .informe .kpi, .informe tr { break-inside: avoid; page-break-inside: avoid; }
   .informe .titulo-informe { break-after: avoid; page-break-after: avoid; }
+  /* Safari no reparte entre hojas un bloque flex: el texto del análisis va como bloque común. */
+  .informe .texto-informe > div { display: block; }
+  .informe .texto-informe > div > * + * { margin-top: 4px; }
 }
