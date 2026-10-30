@@ -21,28 +21,17 @@ export function guardar(clave: string, v: string) {
 }
 
 /**
- * Marco de impresión: con @page sin márgenes (así el navegador no agrega URL, fecha ni
- * numeración), la cabecera y el pie de esta tabla se repiten en cada hoja y hacen de margen.
+ * Marco de impresión. Va en bloques comunes (no en una tabla) porque Safari del iPhone
+ * ignora los cortes de página dentro de celdas de tabla. El pie sale al final del documento.
  */
 export function MarcoImpresion({ pie, children }: { pie: React.ReactNode; children: React.ReactNode }) {
   return (
-    <table className="w-full border-collapse">
-      <thead className="hidden print:table-header-group">
-        <tr><td><div className="h-[13mm]" /></td></tr>
-      </thead>
-      <tfoot className="hidden print:table-footer-group">
-        <tr>
-          <td>
-            <div className="mx-[10mm] flex h-[13mm] items-start justify-between border-t border-ink-border pt-2 text-[8px] tracking-wide text-muted">
-              {pie}
-            </div>
-          </td>
-        </tr>
-      </tfoot>
-      <tbody>
-        <tr><td className="align-top print:px-[10mm]">{children}</td></tr>
-      </tbody>
-    </table>
+    <div>
+      {children}
+      <div className="avoid-break mt-6 flex items-start justify-between border-t border-ink-border pt-2 text-[8px] tracking-wide text-muted">
+        {pie}
+      </div>
+    </div>
   );
 }
 

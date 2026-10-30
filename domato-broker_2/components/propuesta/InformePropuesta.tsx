@@ -164,56 +164,52 @@ export default function InformePropuesta({
               {/* ─── Composición ─── */}
               <section>
                 <Titulo n={sec()}>Composición propuesta</Titulo>
-                <table className="w-full text-[10px] tabular-nums">
-                  <thead>
-                    <tr className="bg-[#1E3A5F] text-[9px] uppercase tracking-[0.06em] text-white">
-                      <th className="whitespace-nowrap px-1.5 py-1.5 text-left font-semibold">Instrumento</th>
-                      <th className="whitespace-nowrap px-1.5 py-1.5 text-left font-semibold">Peso</th>
-                      <th className="whitespace-nowrap px-1.5 py-1.5 text-right font-semibold">Monto</th>
-                      <th className="whitespace-nowrap px-1.5 py-1.5 text-right font-semibold">Precio</th>
-                      <th className="whitespace-nowrap px-1.5 py-1.5 text-right font-semibold">Cupón</th>
-                      <th className="whitespace-nowrap px-1.5 py-1.5 text-right font-semibold">Vence</th>
-                      <th className="whitespace-nowrap px-1.5 py-1.5 text-right font-semibold">TIR neta</th>
-                      <th className="whitespace-nowrap px-1.5 py-1.5 text-right font-semibold">Dur.</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {m.lineas.map((l, idx) => (
-                      <tr key={l.item.isin} className={clsx("border-b border-[#E7E9EE]", idx % 2 === 1 && "bg-[#FAFBFC]")}>
-                        <td className="px-1.5 py-2">
-                          <p className="font-semibold leading-snug">{limpiarNombre(l.item.nombre)}</p>
-                          <p className="mt-0.5 flex items-center gap-1.5 text-[9px] text-muted">
-                            <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: COLOR_GRUPO[l.grupo] ?? "#94A3B8" }} />
-                            {l.grupo} · {l.item.isin}
-                          </p>
-                        </td>
-                        <td className="w-[13%] px-1.5 py-2">
-                          <p className="font-medium">{fmtNum(l.item.peso, 1, "%")}</p>
-                          <div className="mt-1 h-1 w-full rounded-full bg-[#E7E9EE]">
-                            <div className="h-1 rounded-full bg-[#2563EB]" style={{ width: `${Math.min(100, l.item.peso)}%` }} />
-                          </div>
-                        </td>
-                        <td className="whitespace-nowrap px-1.5 py-2 text-right whitespace-nowrap">
-                          {fmtMonto(l.montoLocal, l.item.moneda)}
-                          {l.fx !== 1 && <span className="block text-[9px] text-muted">≈ {fmtMonto(l.monto, moneda)}</span>}
-                        </td>
-                        <td className="whitespace-nowrap px-1.5 py-2 text-right">{fmtNum(l.item.precio, 2)}</td>
-                        <td className="whitespace-nowrap px-1.5 py-2 text-right">{l.item.cupon ? fmtNum(l.item.cupon, 2, "%") : "—"}</td>
-                        <td className="whitespace-nowrap px-1.5 py-2 text-right whitespace-nowrap">{fmtFecha(l.item.vencimiento)}</td>
-                        <td className="whitespace-nowrap px-1.5 py-2 text-right font-semibold" style={{ color: VERDE }}>{fmtNum(l.neto?.tirNeta, 2, "%")}</td>
-                        <td className="whitespace-nowrap px-1.5 py-2 text-right">{fmtNum(l.a.duration, 1)}</td>
-                      </tr>
-                    ))}
-                    <tr className="border-t-2 border-[#1E3A5F] font-semibold">
-                      <td className="px-2 py-2">Total cartera</td>
-                      <td className="px-2 py-2">{fmtNum(m.pesoTotal, 0, "%")}</td>
-                      <td className="whitespace-nowrap px-1.5 py-2 text-right whitespace-nowrap">{fmtMonto(m.lineas.reduce((s, l) => s + l.monto, 0), moneda)}</td>
-                      <td colSpan={3}></td>
-                      <td className="whitespace-nowrap px-1.5 py-2 text-right" style={{ color: VERDE }}>{fmtNum(m.tirNeta, 2, "%")}</td>
-                      <td className="whitespace-nowrap px-1.5 py-2 text-right">{fmtNum(m.duration, 1)}</td>
-                    </tr>
-                  </tbody>
-                </table>
+                <div className="text-[10px] tabular-nums">
+                  <div className="grid grid-cols-[minmax(0,2.5fr)_0.9fr_1.05fr_0.65fr_0.65fr_0.95fr_0.75fr_0.5fr] items-center gap-x-1 rounded-t bg-[#1E3A5F] px-2 py-1.5 text-center text-[8.5px] font-semibold uppercase tracking-[0.06em] text-white">
+                    <span className="text-left">Instrumento</span>
+                    <span>Peso</span>
+                    <span>Monto</span>
+                    <span>Precio</span>
+                    <span>Cupón</span>
+                    <span>Vence</span>
+                    <span>TIR neta</span>
+                    <span>Dur.</span>
+                  </div>
+                  {m.lineas.map((l, idx) => (
+                    <div key={l.item.isin} className={clsx("fila-informe grid grid-cols-[minmax(0,2.5fr)_0.9fr_1.05fr_0.65fr_0.65fr_0.95fr_0.75fr_0.5fr] items-center gap-x-1 border-b border-[#E7E9EE] px-2 py-2 text-center", idx % 2 === 1 && "bg-[#FAFBFC]")}>
+                      <div className="min-w-0 text-left">
+                        <p className="font-semibold leading-snug">{limpiarNombre(l.item.nombre)}</p>
+                        <p className="mt-0.5 flex items-center gap-1.5 text-[8.5px] text-muted">
+                          <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: COLOR_GRUPO[l.grupo] ?? "#94A3B8" }} />
+                          <span className="truncate">{l.grupo} · {l.item.isin}</span>
+                        </p>
+                      </div>
+                      <div className="px-1">
+                        <p className="font-medium">{fmtNum(l.item.peso, 1, "%")}</p>
+                        <div className="mx-auto mt-1 h-1 w-full rounded-full bg-[#E7E9EE]">
+                          <div className="h-1 rounded-full bg-[#2563EB]" style={{ width: `${Math.min(100, l.item.peso)}%` }} />
+                        </div>
+                      </div>
+                      <div className="whitespace-nowrap">
+                        {fmtMonto(l.montoLocal, l.item.moneda)}
+                        {l.fx !== 1 && <span className="block text-[8.5px] text-muted">≈ {fmtMonto(l.monto, moneda)}</span>}
+                      </div>
+                      <span>{fmtNum(l.item.precio, 2)}</span>
+                      <span>{l.item.cupon ? fmtNum(l.item.cupon, 2, "%") : "—"}</span>
+                      <span className="whitespace-nowrap">{fmtFecha(l.item.vencimiento)}</span>
+                      <span className="font-semibold" style={{ color: VERDE }}>{fmtNum(l.neto?.tirNeta, 2, "%")}</span>
+                      <span>{fmtNum(l.a.duration, 1)}</span>
+                    </div>
+                  ))}
+                  <div className="fila-informe grid grid-cols-[minmax(0,2.5fr)_0.9fr_1.05fr_0.65fr_0.65fr_0.95fr_0.75fr_0.5fr] items-center gap-x-1 border-t-2 border-[#1E3A5F] px-2 py-2 text-center font-semibold">
+                    <span className="text-left">Total cartera</span>
+                    <span>{fmtNum(m.pesoTotal, 0, "%")}</span>
+                    <span className="whitespace-nowrap">{fmtMonto(m.lineas.reduce((s, l) => s + l.monto, 0), moneda)}</span>
+                    <span /><span /><span />
+                    <span style={{ color: VERDE }}>{fmtNum(m.tirNeta, 2, "%")}</span>
+                    <span>{fmtNum(m.duration, 1)}</span>
+                  </div>
+                </div>
                 <p className="mt-1.5 text-[9px] text-muted">Precio cada 100 de valor nominal. Duration en años. TIR neta de comisiones, custodia e IRPF.</p>
               </section>
 
@@ -280,7 +276,7 @@ export default function InformePropuesta({
 
               {/* ─── Análisis ─── */}
               {conAnalisis && (
-                <section>
+                <section className="break-before">
                   <Titulo n={sec()}>Análisis y fundamentos</Titulo>
                   <div className="text-[#2B3240]">
                     <TextoIA texto={analisis} compacto />

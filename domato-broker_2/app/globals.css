@@ -57,14 +57,13 @@ body {
 /* Informe para clientes: al imprimir solo sale el documento, en A4. */
 .informe { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 @media print {
-  /* Sin márgenes de página: el navegador no imprime URL/fecha; los márgenes los da MarcoImpresion. */
-  @page { size: A4; margin: 0; }
+  @page { size: A4; margin: 12mm 12mm 14mm; }
   html, body { background: #fff !important; }
   body.informe-abierto > *:not(#informe-root) { display: none !important; }
   body.informe-abierto #informe-root { position: static !important; overflow: visible !important; }
   .informe { -webkit-print-color-adjust: exact; print-color-adjust: exact; transform: none !important; }
-  .informe .break-before { break-before: page; }
-  .informe .avoid-break { break-inside: avoid; }
-  .informe .titulo-informe { break-after: avoid; }
-  .informe tr, .informe .kpi { break-inside: avoid; }
+  /* Se repiten las propiedades viejas (page-break-*) porque Safari las respeta mejor. */
+  .informe .break-before { break-before: page; page-break-before: always; }
+  .informe .avoid-break, .informe .fila-informe, .informe .kpi, .informe tr { break-inside: avoid; page-break-inside: avoid; }
+  .informe .titulo-informe { break-after: avoid; page-break-after: avoid; }
 }
