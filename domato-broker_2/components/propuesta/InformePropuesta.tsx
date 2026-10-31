@@ -33,6 +33,7 @@ export default function InformePropuesta({
   perfil,
   metricas: m,
   analisis,
+  estrategia = "",
   costos,
   onClose,
 }: {
@@ -41,6 +42,7 @@ export default function InformePropuesta({
   perfil: PerfilCliente;
   metricas: MetricasCartera;
   analisis: string;
+  estrategia?: string;
   costos: Costos;
   onClose: () => void;
 }) {
@@ -284,6 +286,16 @@ export default function InformePropuesta({
                   <Titulo n={sec()}>Análisis y fundamentos</Titulo>
                   <div className="texto-informe text-[#2B3240]">
                     <TextoIA texto={analisis} compacto />
+                  </div>
+                </section>
+              )}
+
+              {/* ─── Plan de seguimiento ─── */}
+              {estrategia.trim() && (
+                <section>
+                  <Titulo n={sec()}>Plan de seguimiento a 6 y 12 meses</Titulo>
+                  <div className="texto-informe text-[#2B3240]">
+                    <TextoIA texto={estrategia} compacto />
                   </div>
                 </section>
               )}

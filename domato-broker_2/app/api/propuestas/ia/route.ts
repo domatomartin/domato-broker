@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { usuarioDesdeRequest } from "@/lib/authServer";
 import { NextRequest, NextResponse } from "next/server";
 import type { Candidato, PerfilCliente } from "@/lib/propuesta";
+import { fotoMercado, mercadoTexto, type FotoMercado } from "@/lib/mercado";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -9,8 +10,22 @@ export const maxDuration = 60;
 // Modelo principal y alternativa si la cuenta no tiene acceso al primero.
 const MODELOS = ["claude-sonnet-5-5", "claude-haiku-4-5-20251001"];
 
+type ItemResumen = { isin: string; nombre: string; peso: number; tir_neta: number | null; plazo_anios: number | null; tipo: string; moneda: string };
+
 type Body =
   | { modo: "sugerir"; perfil: PerfilCliente; cliente: string; candidatos: Candidato[] }
+  | { modo: "estrategia"; perfil: PerfilCliente; cliente: string; items: ItemResumen[]; metricas: Record<string, unknown> }
+  | {
+      modo: "revisar";
+      perfil: PerfilCliente;
+      cliente: string;
+      items: (ItemResumen & { precio_propuesta?: number | null; precio_compra?: number | null; precio_hoy?: number | null })[];
+      metricas: Record<string, unknown>;
+      estrategia: string;
+      estrategia_fecha: string | null;
+      estrategia_mercado: FotoMercado | null;
+      ejecutada: boolean;
+    }
   | {
       modo: "analizar";
       perfil: PerfilCliente;
@@ -135,6 +150,68 @@ export async function POST(req: NextRequest) {
       const suma = items.reduce((s, x) => s + Number(x.peso), 0);
       const normalizados = items.map((x) => ({ isin: x.isin, peso: Math.round((Number(x.peso) / suma) * 1000) / 10, motivo: x.motivo?.slice(0, 300) }));
       return NextResponse.json({ items: normalizados, analisis: json.analisis ?? "", model });
+    }
+
+    if (body.modo === "estrategia") {
+      const mercado = await fotoMercado();
+      const prompt = [
+        "Armá una estrategia de seguimiento para esta cartera, a 6 y 12 meses, para que el asesor sepa qué mirar y cuándo actuar.",
+        "",
+        perfilTexto(body.perfil, body.cliente),
+        "",
+        "Cartera (JSON):",
+        JSON.stringify(body.items),
+        "",
+        "Métricas de la cartera (netas de costos):",
+        JSON.stringify(body.metricas),
+        "",
+        `Mercado hoy (${new Date().toLocaleDateString("es-UY")}):`,
+        mercadoTexto(mercado),
+        "",
+        "Usá estas secciones, cada una como línea que empieza con ## :",
+        "## Punto de partida: 2-4 viñetas con el contexto de mercado que importa para ESTA cartera (tasas de EE.UU., dólar, monedas de la cartera).",
+        "## Plan a 6 meses: qué revisar, qué esperar de cupones/vencimientos en ese período y qué decisiones podrían tomarse.",
+        "## Plan a 12 meses: lo mismo a un año, incluyendo reinversión de cupones y vencimientos.",
+        "## Señales de alerta y qué hacer: 4-7 viñetas con formato **Si <condición medible con un umbral concreto>** → acción concreta (por ejemplo vender parte de un bono a través del corredor, acortar plazo, reforzar una moneda, reinvertir en tal tipo de instrumento). Usá umbrales numéricos sobre los datos de mercado de arriba o sobre el precio de los bonos.",
+        "## Próximas revisiones: fechas sugeridas (a 3, 6 y 12 meses) y qué mirar en cada una.",
+        "Viñetas con - y negritas con **. Máximo 450 palabras. Devolvé solo el texto. No es una predicción: es un plan de seguimiento.",
+      ].join("\n");
+      const { texto, model } = await preguntar(prompt, 2500);
+      return NextResponse.json({ estrategia: texto.trim(), mercado, model });
+    }
+
+    if (body.modo === "revisar") {
+      const mercado = await fotoMercado();
+      const prompt = [
+        "Revisá esta cartera contra la estrategia de seguimiento que se definió y contra cómo está el mercado hoy. Decí si hay que actuar.",
+        "",
+        perfilTexto(body.perfil, body.cliente),
+        "",
+        `Estado: ${body.ejecutada ? "la compra ya se ejecutó (hay precio de compra)" : "todavía es una propuesta (no se compró)"}.`,
+        "Cartera con precios (cada 100 de nominal; precio_hoy es el del vector BVM de hoy):",
+        JSON.stringify(body.items),
+        "",
+        "Métricas actuales de la cartera:",
+        JSON.stringify(body.metricas),
+        "",
+        `Estrategia definida el ${body.estrategia_fecha ? new Date(body.estrategia_fecha).toLocaleDateString("es-UY") : "(sin fecha)"}:`,
+        body.estrategia,
+        "",
+        "Mercado cuando se definió la estrategia:",
+        mercadoTexto(body.estrategia_mercado),
+        "",
+        `Mercado hoy (${new Date().toLocaleDateString("es-UY")}):`,
+        mercadoTexto(mercado),
+        "",
+        "Usá estas secciones, cada una como línea que empieza con ## :",
+        "## Qué cambió: las variaciones de mercado y de precios que importan para esta cartera, con números.",
+        "## Señales activadas: cuáles de las señales de alerta de la estrategia se cumplen hoy (o ninguna), citando el umbral.",
+        "## Recomendación: mantener, o acciones concretas (vender parte de qué bono vía el corredor, rebalancear monedas, acortar/alargar plazo, reinvertir cupones), siempre con dinero propio del cliente.",
+        "## Próxima revisión: cuándo y qué mirar.",
+        "Viñetas con - y negritas con **. Máximo 350 palabras. Devolvé solo el texto. Es una sugerencia para el criterio del asesor.",
+      ].join("\n");
+      const { texto, model } = await preguntar(prompt, 2000);
+      return NextResponse.json({ revision: texto.trim(), mercado, model });
     }
 
     if (body.modo === "analizar") {

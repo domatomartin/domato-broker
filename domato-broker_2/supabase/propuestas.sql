@@ -47,3 +47,10 @@ alter table costos_config add column if not exists irpf_soberano_pct numeric not
 alter table costos_config add column if not exists irpf_privado_pct numeric not null default 7;
 alter table costos_config add column if not exists irpf_exterior_pct numeric not null default 12;
 alter table instrumentos add column if not exists irpf_manual numeric;
+
+-- Estrategia de seguimiento a 6 y 12 meses (IA) y última revisión contra el mercado.
+alter table propuestas add column if not exists estrategia text;
+alter table propuestas add column if not exists estrategia_mercado jsonb;
+alter table propuestas add column if not exists estrategia_fecha timestamptz;
+alter table propuestas add column if not exists revision text;
+alter table propuestas add column if not exists revision_fecha timestamptz;

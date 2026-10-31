@@ -84,6 +84,11 @@ export type Propuesta = {
   ejecucion: EjecucionItem[] | null;
   fecha_presentada: string | null;
   fecha_ejecucion: string | null;
+  estrategia?: string | null;
+  estrategia_mercado?: import("@/lib/mercado").FotoMercado | null;
+  estrategia_fecha?: string | null;
+  revision?: string | null;
+  revision_fecha?: string | null;
   created_at: string;
   updated_at: string;
 };

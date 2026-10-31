@@ -14,6 +14,8 @@ import InformePropuesta from "@/components/propuesta/InformePropuesta";
 import EjecutarCompra from "@/components/propuesta/EjecutarCompra";
 import Seguimiento from "@/components/propuesta/Seguimiento";
 import { leer, guardar as guardarLocal } from "@/components/InformeBono";
+import type { FotoMercado } from "@/lib/mercado";
+import { efectivo } from "@/lib/bvm";
 import { useCostos } from "@/lib/useCostos";
 import type { Instrumento } from "@/lib/bvm";
 import {
@@ -36,13 +38,19 @@ export default function PropuestaPage() {
   const [perfil, setPerfil] = useState<PerfilCliente>(PERFIL_DEFECTO);
   const [items, setItems] = useState<ItemPropuesta[]>([]);
   const [analisis, setAnalisis] = useState("");
+  const [estrategia, setEstrategia] = useState("");
+  const [estrategiaMercado, setEstrategiaMercado] = useState<FotoMercado | null>(null);
+  const [estrategiaFecha, setEstrategiaFecha] = useState<string | null>(null);
+  const [revision, setRevision] = useState("");
+  const [revisionFecha, setRevisionFecha] = useState<string | null>(null);
+  const [editandoEstrategia, setEditandoEstrategia] = useState(false);
   const [editandoTexto, setEditandoTexto] = useState(false);
 
   const [cargando, setCargando] = useState(true);
   const [sucio, setSucio] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [msg, setMsg] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
-  const [iaCargando, setIaCargando] = useState<null | "sugerir" | "analizar">(null);
+  const [iaCargando, setIaCargando] = useState<null | "sugerir" | "analizar" | "estrategia" | "revisar">(null);
   const [informe, setInforme] = useState(false);
   const [ejecutando, setEjecutando] = useState(false);
   const [tasas, setTasas] = useState<Cotizaciones | null>(null);
@@ -66,6 +74,11 @@ export default function PropuestaPage() {
         setPerfil({ ...PERFIL_DEFECTO, ...(pr.perfil ?? {}) });
         setItems(pr.items ?? []);
         setAnalisis(pr.analisis ?? "");
+        setEstrategia(pr.estrategia ?? "");
+        setEstrategiaMercado(pr.estrategia_mercado ?? null);
+        setEstrategiaFecha(pr.estrategia_fecha ?? null);
+        setRevision(pr.revision ?? "");
+        setRevisionFecha(pr.revision_fecha ?? null);
       }
       setCatalogo((inst as Instrumento[]) ?? []);
       setCargando(false);
@@ -93,6 +106,11 @@ export default function PropuestaPage() {
       perfil,
       items,
       analisis,
+      estrategia: estrategia || null,
+      estrategia_mercado: estrategiaMercado,
+      estrategia_fecha: estrategiaFecha,
+      revision: revision || null,
+      revision_fecha: revisionFecha,
       metricas: metricas.lineas.length ? metricasParaGuardar(metricas, perfil.monto) : null,
       updated_at: new Date().toISOString(),
       ...extra,
@@ -114,7 +132,7 @@ export default function PropuestaPage() {
     const t = setTimeout(() => { guardar({}, true); }, 1500);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sucio, cliente, asesor, perfil, items, analisis, cargando, guardando, ejecutada]);
+  }, [sucio, cliente, asesor, perfil, items, analisis, estrategia, revision, cargando, guardando, ejecutada]);
 
   async function token() {
     const { data } = await supabase.auth.getSession();
@@ -178,6 +196,58 @@ export default function PropuestaPage() {
       setAnalisis(j.analisis);
       setSucio(true);
       setMsg({ tipo: "ok", texto: "Análisis actualizado y guardado. Revisalo antes de presentarlo." });
+    } catch (e) {
+      setMsg({ tipo: "error", texto: `No se pudo consultar la IA: ${e instanceof Error ? e.message : String(e)}` });
+    } finally {
+      setIaCargando(null);
+    }
+  }
+
+  function resumenCartera() {
+    return {
+      items: metricas.lineas.map((l) => {
+        const ins = mapa.get(l.item.isin);
+        const compra = prop?.ejecucion?.find((x) => x.isin === l.item.isin);
+        return {
+          isin: l.item.isin, nombre: l.item.nombre, peso: l.item.peso, moneda: l.item.moneda, tipo: l.grupo,
+          tir_neta: l.neto?.tirNeta != null ? Number(l.neto.tirNeta.toFixed(2)) : null,
+          plazo_anios: l.a.aniosAlVencimiento != null ? Number(l.a.aniosAlVencimiento.toFixed(1)) : null,
+          precio_propuesta: l.item.precio,
+          precio_compra: compra?.precio_compra ?? null,
+          precio_hoy: ins ? efectivo(ins).precio ?? null : null,
+        };
+      }),
+      metricas: {
+        tir_neta: metricas.tirNeta, tir_bruta: metricas.tirBruta, duration: metricas.duration, plazo_promedio: metricas.plazoPromedio,
+        inversion_total: metricas.inversionTotal, cobro_anual: metricas.interesAnual, por_moneda: metricas.porMoneda,
+        por_tipo: metricas.porGrupo, por_plazo: metricas.porPlazo, moneda_cliente: perfil.moneda,
+      },
+    };
+  }
+
+  async function estrategiaIA(modo: "estrategia" | "revisar") {
+    setMsg(null);
+    setIaCargando(modo);
+    try {
+      const r = await fetch("/api/propuestas/ia", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${await token()}` },
+        body: JSON.stringify({
+          modo, perfil, cliente, ...resumenCartera(),
+          estrategia, estrategia_fecha: estrategiaFecha, estrategia_mercado: estrategiaMercado, ejecutada,
+        }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error ?? `Error ${r.status}`);
+      const ahora = new Date().toISOString();
+      if (modo === "estrategia") {
+        setEstrategia(j.estrategia); setEstrategiaMercado(j.mercado ?? null); setEstrategiaFecha(ahora);
+        setMsg({ tipo: "ok", texto: "Estrategia a 6 y 12 meses lista y guardada, con la foto del mercado de hoy." });
+      } else {
+        setRevision(j.revision); setRevisionFecha(ahora);
+        setMsg({ tipo: "ok", texto: "Revisión contra el mercado de hoy lista y guardada." });
+      }
+      setSucio(true);
     } catch (e) {
       setMsg({ tipo: "error", texto: `No se pudo consultar la IA: ${e instanceof Error ? e.message : String(e)}` });
     } finally {
@@ -329,8 +399,56 @@ export default function PropuestaPage() {
         <p className="text-[11px] text-muted">Revisá siempre el texto de la IA antes de presentarlo: es un borrador para tu criterio profesional.</p>
       </Panel>
 
+      <Panel
+        title="5 · Estrategia de seguimiento a 6 y 12 meses"
+        action={
+          <div className="flex flex-wrap items-center gap-3">
+            {estrategia && (
+              <button type="button" onClick={() => setEditandoEstrategia((v) => !v)} className="text-xs text-muted underline hover:text-paper">
+                {editandoEstrategia ? "Ver como queda" : "Editar texto"}
+              </button>
+            )}
+            <button type="button" onClick={() => estrategiaIA("estrategia")} disabled={!!iaCargando || !metricas.lineas.length} className="rounded border border-ink-border px-3 py-1.5 text-xs text-paper hover:border-gold disabled:opacity-50">
+              {iaCargando === "estrategia" ? "Armando la estrategia…" : estrategia ? "✦ Rehacer estrategia" : "✦ Armar estrategia con IA"}
+            </button>
+            {estrategia && (
+              <button type="button" onClick={() => estrategiaIA("revisar")} disabled={!!iaCargando} className="rounded bg-gold px-3 py-1.5 text-xs font-medium text-white hover:bg-gold-bright disabled:opacity-50">
+                {iaCargando === "revisar" ? "Revisando…" : "↻ Revisar con el mercado de hoy"}
+              </button>
+            )}
+          </div>
+        }
+      >
+        {!estrategia ? (
+          <p className="text-sm text-muted">
+            La IA arma un plan de seguimiento a 6 y 12 meses con la foto del mercado de hoy (tasas de EE.UU., dólar, monedas, volatilidad):
+            qué revisar, cuándo, y señales concretas para actuar (vender parte vía el corredor, rebalancear monedas, acortar plazo, reinvertir).
+            Después podés tocar “Revisar con el mercado de hoy” para ver si alguna señal se activó.
+          </p>
+        ) : editandoEstrategia ? (
+          <textarea className={clsx(input, "min-h-[260px] font-mono text-xs")} value={estrategia} onChange={(e) => { setEstrategia(e.target.value); setSucio(true); }} />
+        ) : (
+          <>
+            <p className="text-[11px] text-muted">
+              Definida el {estrategiaFecha ? new Date(estrategiaFecha).toLocaleDateString("es-UY") : "—"}
+              {estrategiaMercado?.datos?.length ? " · mercado de ese día: " + estrategiaMercado.datos.filter((d) => d.valor != null).slice(0, 6).map((d) => `${d.nombre.replace("Tasa ", "")} ${d.valor}${d.unidad === "%" ? "%" : ""}`).join(" · ") : ""}
+            </p>
+            <TextoIA texto={estrategia} />
+          </>
+        )}
+        {revision && (
+          <div className="mt-2 rounded-xl border border-[#2563EB]/30 bg-[#2563EB]/5 p-4">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#1D4ED8]">
+              Última revisión · {revisionFecha ? new Date(revisionFecha).toLocaleDateString("es-UY") : ""}
+            </p>
+            <TextoIA texto={revision} />
+          </div>
+        )}
+        <p className="text-[11px] text-muted">Es un plan orientativo para tu criterio profesional, no una predicción del mercado.</p>
+      </Panel>
+
       {informe && (
-        <InformePropuesta cliente={cliente} asesor={asesor} perfil={perfil} metricas={metricas} analisis={analisis} costos={costos} onClose={() => setInforme(false)} />
+        <InformePropuesta cliente={cliente} asesor={asesor} perfil={perfil} metricas={metricas} analisis={analisis} estrategia={estrategia} costos={costos} onClose={() => setInforme(false)} />
       )}
       {ejecutando && (
         <EjecutarCompra
