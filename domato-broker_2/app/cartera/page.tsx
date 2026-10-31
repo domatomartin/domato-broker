@@ -1,5 +1,7 @@
 "use client";
 
+import { aUSD, type TasasFx } from "@/lib/fx";
+
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
@@ -18,7 +20,7 @@ type CuentaFiltro = "todas" | string;
 type MonedaFiltro = "todas" | "USD" | "UYU" | "ARS" | "UI";
 type TipoFiltro = "todos" | "bono" | "accion";
 type OrigenFiltro = "todos" | "local" | "exterior";
-type Tasas = { UYU_per_USD: number; ARS_per_USD: number; UI_in_UYU: number; fetched_at: string };
+type Tasas = TasasFx & { ARS_per_USD: number; fetched_at: string };
 
 function formatValorResumen(value: number, moneda: string) {
   const isosValidos = ["USD", "UYU", "ARS", "EUR", "BRL"];
@@ -32,11 +34,7 @@ function calcTotalUSD(
   totales: Record<string, { valorTotal: number }>,
   tasas: Tasas
 ): number {
-  const usd = totales["USD"]?.valorTotal ?? 0;
-  const uyu = (totales["UYU"]?.valorTotal ?? 0) / tasas.UYU_per_USD;
-  const ui = ((totales["UI"]?.valorTotal ?? 0) * tasas.UI_in_UYU) / tasas.UYU_per_USD;
-  const ars = (totales["ARS"]?.valorTotal ?? 0) / tasas.ARS_per_USD;
-  return usd + uyu + ui + ars;
+  return Object.entries(totales).reduce((s, [m, t]) => s + aUSD(t.valorTotal, m, tasas), 0);
 }
 
 function getTipo(b: Bond): "bono" | "accion" {
@@ -263,7 +261,7 @@ export default function CarteraPage() {
               {formatMoney(totalUSD, "USD")}
             </p>
             <p className="text-xs text-muted mt-1">
-              1 USD = {tasas!.UYU_per_USD.toFixed(2)} UYU · 1 UI = {tasas!.UI_in_UYU.toFixed(4)} UYU · 1 USD = {tasas!.ARS_per_USD.toFixed(0)} ARS
+              1 USD = {tasas!.UYU_per_USD.toFixed(2)} UYU · 1 UI = {tasas!.UI_in_UYU.toFixed(4)} UYU · 1 USD = {tasas!.ARS_per_USD.toFixed(0)} ARS{tasas!.EUR_per_USD ? ` · 1 EUR = ${(1 / tasas!.EUR_per_USD).toFixed(3)} USD` : ""}{tasas!.BRL_per_USD ? ` · 1 USD = ${tasas!.BRL_per_USD.toFixed(2)} BRL` : ""}
             </p>
           </div>
         </div>

@@ -1,5 +1,7 @@
 "use client";
 
+import { aUSD, type TasasFx } from "@/lib/fx";
+
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { Bond, PatrimonioSnapshot } from "@/lib/types";
@@ -10,13 +12,10 @@ import TickerStrip, { TickerItem } from "@/components/TickerStrip";
 import { computeBondAlerts, severityOrder } from "@/lib/alerts";
 import Link from "next/link";
 
-type Tasas = { UYU_per_USD: number; ARS_per_USD: number; UI_in_UYU: number; fetched_at: string };
+type Tasas = TasasFx & { ARS_per_USD: number; fetched_at: string };
 
 function toUSD(valor: number, moneda: string, tasas: Tasas): number {
-  if (moneda === "UYU") return valor / tasas.UYU_per_USD;
-  if (moneda === "UI") return (valor * tasas.UI_in_UYU) / tasas.UYU_per_USD;
-  if (moneda === "ARS") return valor / tasas.ARS_per_USD;
-  return valor;
+  return aUSD(valor, moneda, tasas);
 }
 
 function getGreeting(): string {
