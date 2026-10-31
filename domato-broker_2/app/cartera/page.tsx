@@ -43,7 +43,10 @@ function getTipo(b: Bond): "bono" | "accion" {
 
 function getOrigen(b: Bond): "local" | "exterior" {
   if (!b.isin) return "exterior";
-  return b.isin.toUpperCase().startsWith("UY") ? "local" : "exterior";
+  const isin = b.isin.toUpperCase();
+  // Los Globales de Uruguay tienen ISIN de EE.UU. (US760942…, US917288…) pero son deuda uruguaya.
+  if (isin.startsWith("UY") || isin.startsWith("US760942") || isin.startsWith("US917288") || /Uruguay/i.test(b.nombre)) return "local";
+  return "exterior";
 }
 
 function FilterChip({
