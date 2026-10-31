@@ -247,6 +247,8 @@ export function grupoDe(i: Instrumento): Grupo {
   if (i.isin.startsWith("UY")) {
     if (i.isin.startsWith("UYFF")) return "Fideicomisos";
     if (i.isin.startsWith("UYON")) return "Corporativos";
+    // Notas y Bonos del Tesoro, Letras de Regulación Monetaria y Letras de Tesorería.
+    if (/^UY(NA|BT|LR|TL|TB)/.test(i.isin)) return "Uruguay soberano";
     return "Otros";
   }
   return "Exterior";

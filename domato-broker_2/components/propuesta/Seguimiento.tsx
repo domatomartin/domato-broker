@@ -83,8 +83,15 @@ export default function Seguimiento({
   const sinFxFijado = monedasExt.some((m) => !p.fx_compra?.[m]);
 
   // TIR neta de lo efectivamente comprado (flujos desde la ejecución).
+  // Con varias monedas no se pueden sumar flujos de distintas monedas: se pondera la TIR de cada bono por lo invertido.
   const flujosEj = filas.flatMap((f) => (f.ej ? f.ej.flujosNetos.map((fl) => ({ anios: fl.anios, total: fl.total })) : []));
-  const tirEjecutada = tirDeFlujos(invertido, flujosEj);
+  const tirEjecutada = unaMoneda
+    ? tirDeFlujos(invertido, flujosEj)
+    : (() => {
+        let s = 0, w = 0;
+        for (const f of filas) if (f.ej?.tirNeta != null) { const peso = f.invertido * fxCompra(f.item.moneda); s += f.ej.tirNeta * peso; w += peso; }
+        return w > 0 ? s / w : null;
+      })();
   const tirPropuesta = p.metricas?.tirNeta ?? propuesta.tirNeta;
   const diasDesde = Math.round((Date.parse(hoy) - Date.parse(p.fecha_ejecucion ?? hoy)) / DIA);
 
