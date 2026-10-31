@@ -104,7 +104,13 @@ function fechaIso(dd: string, mm: string, yy: string): string | null {
 }
 
 /** Moneda a partir de la especie; si la especie no la dice, se mira el ISIN. */
+// Correcciones verificadas en el prospecto: la BVM agrupa estas emisiones con otra moneda.
+const MONEDA_CORREGIDA: Record<string, string> = {
+  EU000A4D7YR5: "BRL", // BEI 11% 03/07/2030, en reales
+};
+
 export function monedaDe(especie: string | null, isin: string): string {
+  if (MONEDA_CORREGIDA[isin]) return MONEDA_CORREGIDA[isin];
   const e = especie ?? "";
   if (/\bDUI\b|\bUI\b/.test(e)) return "UI";
   if (/\bUP\b/.test(e)) return "UP";
