@@ -6,6 +6,7 @@ import { hoyIso, analizarBono } from "@/lib/bondMath";
 import { efectivo, type Instrumento } from "@/lib/bvm";
 import type { EjecucionItem, MetricasCartera } from "@/lib/propuesta";
 import { fmtNum } from "@/components/BondAnalysis";
+import TipoCambioInput from "@/components/propuesta/TipoCambio";
 
 type Fila = { isin: string; nombre: string; moneda: string; precio: string; vn: string };
 
@@ -18,6 +19,8 @@ export default function EjecutarCompra({
   cliente,
   metricas,
   catalogo,
+  monedaCliente,
+  fxsHoy = {},
   onCancel,
   onDone,
 }: {
@@ -25,8 +28,10 @@ export default function EjecutarCompra({
   cliente: string;
   metricas: MetricasCartera;
   catalogo: Map<string, Instrumento>;
+  monedaCliente: string;
+  fxsHoy?: Record<string, number>;
   onCancel: () => void;
-  onDone: (ejecucion: EjecucionItem[], cuenta: string, fecha: string) => Promise<void>;
+  onDone: (ejecucion: EjecucionItem[], cuenta: string, fecha: string, fxCompra: Record<string, number>) => Promise<void>;
 }) {
   const hoy = hoyIso();
   const [cuenta, setCuenta] = useState(cliente || "Cliente");
@@ -41,6 +46,10 @@ export default function EjecutarCompra({
         precio: String(l.item.precio ?? ""),
         vn: String(Math.round(l.vn)),
       }))
+  );
+  const monedasExt = [...new Set(metricas.lineas.map((l) => l.item.moneda))].filter((m) => m !== monedaCliente);
+  const [fxCompra, setFxCompra] = useState<Record<string, number>>(
+    Object.fromEntries(monedasExt.filter((m) => fxsHoy[m]).map((m) => [m, fxsHoy[m]]))
   );
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -62,6 +71,8 @@ export default function EjecutarCompra({
       ejecucion.push({ isin: f.isin, precio_compra: precio, valor_nominal: vn, fecha });
     }
 
+    const faltaTc = monedasExt.filter((m) => !(fxCompra[m] > 0));
+    if (faltaTc.length) { setError(`Fijá el tipo de cambio de compra para ${faltaTc.join(", ")}.`); return; }
     setGuardando(true);
     const registros = ejecucion.map((x) => {
       const item = metricas.lineas.find((l) => l.item.isin === x.isin)!.item;
@@ -96,7 +107,7 @@ export default function EjecutarCompra({
 
     const { error: err } = await supabase.from("bonds").insert(registros);
     if (err) { setGuardando(false); setError(`No se pudo registrar la compra: ${err.message}`); return; }
-    await onDone(ejecucion, nombreCuenta, fecha);
+    await onDone(ejecucion, nombreCuenta, fecha, { ...fxCompra, [monedaCliente]: 1 });
     setGuardando(false);
   }
 
@@ -119,6 +130,19 @@ export default function EjecutarCompra({
             <input type="date" className={input} value={fecha} onChange={(e) => setFecha(e.target.value)} />
           </label>
         </div>
+        {monedasExt.length > 0 && (
+          <div className="rounded-xl border border-ink-border bg-ink/40 px-4 py-3">
+            <p className="text-xs font-medium text-paper">Tipos de cambio de la compra</p>
+            <p className="mb-2 text-[11px] text-muted">
+              Los que usó el corredor para pasar de {monedaCliente} a cada moneda. Quedan fijos para medir después la ganancia o pérdida por tipo de cambio. Vienen cargados con la cotización de hoy.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              {monedasExt.map((m) => (
+                <TipoCambioInput key={m} moneda={m} base={monedaCliente} fx={fxCompra[m]} onChange={(v) => setFxCompra((x) => { const n = { ...x }; if (v) n[m] = v; else delete n[m]; return n; })} />
+              ))}
+            </div>
+          </div>
+        )}
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="text-[11px] text-muted border-b border-ink-border">

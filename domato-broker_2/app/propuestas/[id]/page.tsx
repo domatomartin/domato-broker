@@ -255,8 +255,8 @@ export default function PropuestaPage() {
     }
   }
 
-  async function registrarEjecucion(ejecucion: EjecucionItem[], cuenta: string, fecha: string) {
-    const ok = await guardar({ estado: "ejecutada", ejecucion, cuenta, fecha_ejecucion: fecha });
+  async function registrarEjecucion(ejecucion: EjecucionItem[], cuenta: string, fecha: string, fxCompra: Record<string, number>) {
+    const ok = await guardar({ estado: "ejecutada", ejecucion, cuenta, fecha_ejecucion: fecha, fx_compra: fxCompra });
     if (ok) {
       setEjecutando(false);
       setMsg({ tipo: "ok", texto: `Compra registrada en la cartera “${cuenta}”. Abajo tenés el seguimiento.` });
@@ -311,7 +311,7 @@ export default function PropuestaPage() {
 
       {ejecutada && (
         <Panel title="Seguimiento: real contra propuesta">
-          <Seguimiento propuesta={prop} costos={costos} catalogo={mapa} fxs={fxs} />
+          <Seguimiento propuesta={prop} costos={costos} catalogo={mapa} fxs={fxs} onGuardarFx={async (fx) => { await guardar({ fx_compra: fx }); }} />
         </Panel>
       )}
 
@@ -456,6 +456,8 @@ export default function PropuestaPage() {
           cliente={cliente}
           metricas={metricas}
           catalogo={mapa}
+          monedaCliente={perfil.moneda}
+          fxsHoy={fxs}
           onCancel={() => setEjecutando(false)}
           onDone={registrarEjecucion}
         />

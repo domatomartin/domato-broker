@@ -54,3 +54,6 @@ alter table propuestas add column if not exists estrategia_mercado jsonb;
 alter table propuestas add column if not exists estrategia_fecha timestamptz;
 alter table propuestas add column if not exists revision text;
 alter table propuestas add column if not exists revision_fecha timestamptz;
+
+-- Tipos de cambio fijados al ejecutar la compra (valor de 1 unidad de cada moneda en la moneda del cliente).
+alter table propuestas add column if not exists fx_compra jsonb;

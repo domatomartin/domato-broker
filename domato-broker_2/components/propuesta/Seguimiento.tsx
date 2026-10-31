@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import clsx from "clsx";
+import TipoCambioInput, { textoTc } from "@/components/propuesta/TipoCambio";
 import { analizarBono, hoyIso, tirDeFlujos } from "@/lib/bondMath";
 import { aplicarCostos, irpfDe, type Costos } from "@/lib/costos";
 import { efectivo, type Instrumento } from "@/lib/bvm";
@@ -19,7 +21,16 @@ function Kpi({ label, value, sub, tono }: { label: string; value: string; sub?: 
   );
 }
 
-export default function Seguimiento({ propuesta: p, costos, catalogo, fxs = {} }: { propuesta: Propuesta; costos: Costos; catalogo: Map<string, Instrumento>; fxs?: TiposDeCambio }) {
+export default function Seguimiento({
+  propuesta: p, costos, catalogo, fxs = {}, onGuardarFx,
+}: {
+  propuesta: Propuesta;
+  costos: Costos;
+  catalogo: Map<string, Instrumento>;
+  fxs?: TiposDeCambio;
+  onGuardarFx?: (fx: Record<string, number>) => Promise<void>;
+}) {
+  const [editFx, setEditFx] = useState<Record<string, number> | null>(null);
   if (!p.ejecucion?.length) return null;
   const hoy = hoyIso();
   const fechaProp = (p.fecha_presentada ?? p.created_at).slice(0, 10);
@@ -50,16 +61,26 @@ export default function Seguimiento({ propuesta: p, costos, catalogo, fxs = {} }
     return { x, item, prop, ej, precioHoy, valorHoy, cobrado, invertido, resultado, esperado, tirProp, vencido, anios };
   });
 
-  // Totales en la moneda del perfil.
-  const tot = (fn: (f: (typeof filas)[number]) => number | null) => filas.reduce((s, f) => s + (fn(f) ?? 0) * (fxs[f.item.moneda] ?? 1), 0);
-  const invertido = tot((f) => f.invertido);
-  const valorHoy = tot((f) => f.valorHoy);
-  const cobrado = tot((f) => f.cobrado);
-  const resultado = valorHoy + cobrado - invertido;
-  const esperado = tot((f) => f.esperado);
-  const desvio = valorHoy + cobrado - esperado;
+  // Totales en la moneda del cliente. Lo invertido se convierte al tipo de cambio fijado en la compra;
+  // el valor de hoy y los cupones, al de hoy. La diferencia entre ambos es el efecto del tipo de cambio.
   const monedasItems = [...new Set(p.items.map((i) => i.moneda))];
-  const moneda = monedasItems.length === 1 ? monedasItems[0] : p.perfil.moneda;
+  const monedaCli = p.perfil.moneda;
+  const unaMoneda = monedasItems.length === 1;
+  const moneda = unaMoneda ? monedasItems[0] : monedaCli;
+  const fxHoy = (m: string) => (unaMoneda ? 1 : fxs[m] ?? 1);
+  const fxCompra = (m: string) => (unaMoneda ? 1 : p.fx_compra?.[m] ?? fxs[m] ?? 1);
+  const totC = (fn: (f: (typeof filas)[number]) => number | null) => filas.reduce((s, f) => s + (fn(f) ?? 0) * fxCompra(f.item.moneda), 0);
+  const totH = (fn: (f: (typeof filas)[number]) => number | null) => filas.reduce((s, f) => s + (fn(f) ?? 0) * fxHoy(f.item.moneda), 0);
+  const invertido = totC((f) => f.invertido);
+  const valorHoy = totH((f) => f.valorHoy);
+  const cobrado = totH((f) => f.cobrado);
+  const resultado = valorHoy + cobrado - invertido;
+  const efectoPrecio = totC((f) => (f.valorHoy ?? 0) + f.cobrado - f.invertido);
+  const efectoCambio = resultado - efectoPrecio;
+  const esperado = totC((f) => f.esperado);
+  const desvio = valorHoy + cobrado - esperado;
+  const monedasExt = monedasItems.filter((m) => m !== monedaCli);
+  const sinFxFijado = monedasExt.some((m) => !p.fx_compra?.[m]);
 
   // TIR neta de lo efectivamente comprado (flujos desde la ejecución).
   const flujosEj = filas.flatMap((f) => (f.ej ? f.ej.flujosNetos.map((fl) => ({ anios: fl.anios, total: fl.total })) : []));
@@ -89,6 +110,53 @@ export default function Seguimiento({ propuesta: p, costos, catalogo, fxs = {} }
           tono={desvio >= 0 ? "gain" : "loss"}
         />
       </div>
+      {!unaMoneda && (
+        <div className="rounded-xl border border-ink-border bg-ink/40 px-4 py-3 flex flex-col gap-3">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Kpi label="Resultado total" value={`${resultado >= 0 ? "+" : ""}${fmtMonto(resultado, moneda)}`} tono={resultado >= 0 ? "gain" : "loss"} />
+            <Kpi label="Por precio y cupones" value={`${efectoPrecio >= 0 ? "+" : ""}${fmtMonto(efectoPrecio, moneda)}`} sub="en moneda de cada bono, al tipo de cambio de compra" tono={efectoPrecio >= 0 ? "gain" : "loss"} />
+            <Kpi label="Por tipo de cambio" value={`${efectoCambio >= 0 ? "+" : ""}${fmtMonto(efectoCambio, moneda)}`} sub={`variación de las monedas frente al ${monedaCli}`} tono={efectoCambio >= 0 ? "gain" : "loss"} />
+          </div>
+          <div className="flex flex-wrap items-end gap-4 text-xs">
+            {monedasExt.map((m) => {
+              const c = p.fx_compra?.[m];
+              const h = fxs[m];
+              const varPct = c && h ? ((h - c) / c) * 100 : null;
+              return (
+                <div key={m} className="rounded-lg border border-ink-border bg-ink-panel px-3 py-2">
+                  <p className="font-semibold text-paper">{m}</p>
+                  {editFx ? (
+                    <TipoCambioInput moneda={m} base={monedaCli} fx={editFx[m]} onChange={(v) => setEditFx((x) => { const n = { ...(x ?? {}) }; if (v) n[m] = v; else delete n[m]; return n; })} />
+                  ) : (
+                    <p className="text-muted">Compra: <span className="text-paper">{textoTc(m, monedaCli, c)}</span></p>
+                  )}
+                  <p className="text-muted">Hoy: <span className="text-paper">{textoTc(m, monedaCli, h)}</span></p>
+                  {varPct != null && (
+                    <p className={clsx("font-medium", varPct >= 0 ? "text-gain" : "text-loss")}>
+                      {m} {varPct >= 0 ? "se apreció" : "se depreció"} {fmtNum(Math.abs(varPct), 2, "%")} frente al {monedaCli}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+            {onGuardarFx && (
+              editFx ? (
+                <div className="flex gap-2">
+                  <button type="button" onClick={async () => { await onGuardarFx({ ...editFx, [monedaCli]: 1 }); setEditFx(null); }} className="rounded bg-gold px-3 py-1.5 text-xs font-medium text-white">Guardar tipos de cambio</button>
+                  <button type="button" onClick={() => setEditFx(null)} className="text-xs text-muted underline">Cancelar</button>
+                </div>
+              ) : (
+                <button type="button" onClick={() => setEditFx(Object.fromEntries(monedasExt.map((m) => [m, p.fx_compra?.[m] ?? fxs[m]]).filter(([, v]) => v)) as Record<string, number>)} className="rounded border border-ink-border px-3 py-1.5 text-xs text-paper hover:border-gold">
+                  {sinFxFijado ? "Fijar tipos de cambio de compra" : "Editar tipos de cambio de compra"}
+                </button>
+              )
+            )}
+          </div>
+          {sinFxFijado && !editFx && (
+            <p className="text-[11px] text-warn">Falta fijar el tipo de cambio de compra de alguna moneda: mientras tanto se usa el de hoy y el efecto cambiario da cero.</p>
+          )}
+        </div>
+      )}
       <div className="grid gap-3 sm:grid-cols-3 text-sm">
         <div className="rounded-lg border border-ink-border px-3 py-2">
           <p className="text-xs text-muted">TIR neta propuesta</p>
@@ -114,6 +182,7 @@ export default function Seguimiento({ propuesta: p, costos, catalogo, fxs = {} }
               <th colSpan={3} className="px-2 py-1 text-center font-medium border-l border-ink-border">Propuesto</th>
               <th colSpan={3} className="px-2 py-1 text-center font-medium border-l border-ink-border">Ejecutado</th>
               <th colSpan={4} className="px-2 py-1 text-center font-medium border-l border-ink-border">Hoy</th>
+              {!unaMoneda && <th className="border-l border-ink-border" />}
             </tr>
             <tr className="border-b border-ink-border">
               <th className="px-2 py-1 text-right font-medium border-l border-ink-border">Precio</th>
@@ -126,6 +195,7 @@ export default function Seguimiento({ propuesta: p, costos, catalogo, fxs = {} }
               <th className="px-2 py-1 text-right font-medium">Valor</th>
               <th className="px-2 py-1 text-right font-medium">Cobrado</th>
               <th className="px-2 py-1 text-right font-medium">Resultado</th>
+              {!unaMoneda && <th className="px-2 py-1 text-right font-medium border-l border-ink-border">Efecto cambio ({monedaCli})</th>}
             </tr>
           </thead>
           <tbody>
@@ -147,6 +217,14 @@ export default function Seguimiento({ propuesta: p, costos, catalogo, fxs = {} }
                 <td className={clsx("px-2 py-1.5 text-right font-semibold", (f.resultado ?? 0) >= 0 ? "text-gain" : "text-loss")}>
                   {f.resultado != null ? `${f.resultado >= 0 ? "+" : ""}${fmtMonto(f.resultado, f.item.moneda)}` : "—"}
                 </td>
+                {!unaMoneda && (() => {
+                  const ec = ((f.valorHoy ?? 0) + f.cobrado) * (fxHoy(f.item.moneda) - fxCompra(f.item.moneda));
+                  return (
+                    <td className={clsx("px-2 py-1.5 text-right border-l border-ink-border", f.item.moneda === monedaCli ? "text-muted" : ec >= 0 ? "text-gain" : "text-loss")}>
+                      {f.item.moneda === monedaCli ? "—" : `${ec >= 0 ? "+" : ""}${fmtMonto(ec, monedaCli)}`}
+                    </td>
+                  );
+                })()}
               </tr>
             ))}
           </tbody>
@@ -155,6 +233,7 @@ export default function Seguimiento({ propuesta: p, costos, catalogo, fxs = {} }
       <p className="text-[10px] text-muted">
         Resultado = valor de mercado hoy (precio sucio) + cupones cobrados netos de costos e IRPF − lo invertido con comisiones. “Esperado” capitaliza lo invertido a la TIR neta propuesta
         desde la fecha de compra. Las variaciones de precio solo se realizan si se vende antes del vencimiento.
+        {!unaMoneda && " Con varias monedas, lo invertido se pasa a la moneda del cliente al tipo de cambio fijado en la compra y el valor de hoy al de hoy: la diferencia es el efecto cambiario (los cupones cobrados se valúan al tipo de cambio de hoy)."}
       </p>
     </div>
   );

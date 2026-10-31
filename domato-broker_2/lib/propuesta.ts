@@ -89,6 +89,8 @@ export type Propuesta = {
   estrategia_fecha?: string | null;
   revision?: string | null;
   revision_fecha?: string | null;
+  /** Tipos de cambio fijados al comprar: valor de 1 unidad de cada moneda en la moneda del cliente. */
+  fx_compra?: Record<string, number> | null;
   created_at: string;
   updated_at: string;
 };
