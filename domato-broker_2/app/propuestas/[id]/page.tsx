@@ -18,7 +18,7 @@ import { useCostos } from "@/lib/useCostos";
 import type { Instrumento } from "@/lib/bvm";
 import {
   ESTADOS, OBJETIVOS, PERFIL_DEFECTO, RIESGOS,
-  calcularCartera, candidatosPara, itemDesdeInstrumento, metricasParaGuardar, monedasCompatibles, tiposParaPerfil,
+  calcularCartera, candidatosPara, itemDesdeInstrumento, metricasParaGuardar, monedasDelPerfil, tiposParaPerfil, MONEDAS_PROPUESTA, NOMBRE_MONEDA, type Cotizaciones,
   type EjecucionItem, type ItemPropuesta, type PerfilCliente, type Propuesta,
 } from "@/lib/propuesta";
 import { fmtFecha, fmtNum } from "@/components/BondAnalysis";
@@ -45,7 +45,7 @@ export default function PropuestaPage() {
   const [iaCargando, setIaCargando] = useState<null | "sugerir" | "analizar">(null);
   const [informe, setInforme] = useState(false);
   const [ejecutando, setEjecutando] = useState(false);
-  const [tasas, setTasas] = useState<{ UYU_per_USD: number; UI_in_UYU: number } | null>(null);
+  const [tasas, setTasas] = useState<Cotizaciones | null>(null);
 
   useEffect(() => {
     fetch("/api/cotizaciones").then((r) => r.json()).then(setTasas).catch(() => setTasas(null));
@@ -123,9 +123,9 @@ export default function PropuestaPage() {
 
   async function sugerirIA() {
     setMsg(null);
-    const candidatos = candidatosPara(perfil, catalogo, costos);
+    const candidatos = candidatosPara(perfil, catalogo, costos, fxs);
     if (!candidatos.length) {
-      setMsg({ tipo: "error", texto: `No hay bonos con datos completos en ${monedasCompatibles(perfil.moneda).join("/")} con plazo de hasta ${perfil.plazoMaxAnios} años. Ampliá el plazo o completá datos en Opciones de inversión.` });
+      setMsg({ tipo: "error", texto: `No hay bonos con datos completos en ${monedasDelPerfil(perfil, fxs).join("/")} con plazo de hasta ${perfil.plazoMaxAnios} años. Ampliá el plazo o completá datos en Opciones de inversión.` });
       return;
     }
     setIaCargando("sugerir");
@@ -280,13 +280,14 @@ export default function PropuestaPage() {
             <input className={input} value={perfil.notas} onChange={(e) => setPerfilS({ notas: e.target.value })} placeholder="Ej.: necesita renta semestral; no quiere fideicomisos; parte del dinero lo usa en 2029" disabled={ejecutada} />
           </label>
         </div>
+        <SelectorMonedas perfil={perfil} fxs={fxs} onChange={setPerfilS} bloqueado={ejecutada} />
         {!ejecutada && (
           <div className="flex flex-wrap items-center gap-3">
             <button type="button" onClick={sugerirIA} disabled={!!iaCargando} className="rounded bg-gold px-4 py-2 text-sm font-medium text-ink-panel hover:bg-gold-bright disabled:opacity-50">
               {iaCargando === "sugerir" ? "La IA está armando la propuesta…" : items.length ? "✦ Volver a sugerir con IA" : "✦ Sugerir cartera con IA"}
             </button>
             <span className="text-xs text-muted">
-              Elige entre los bonos del catálogo con datos completos ({candidatosPara(perfil, catalogo, costos).length} candidatos para este perfil) y propone pesos. Después podés ajustar todo.
+              Elige entre los bonos del catálogo con datos completos ({candidatosPara(perfil, catalogo, costos, fxs).length} candidatos para este perfil) y propone pesos. Después podés ajustar todo.
             </span>
           </div>
         )}
@@ -343,6 +344,84 @@ export default function PropuestaPage() {
       )}
       {!pesoOk && metricas.lineas.length > 0 && !ejecutada && (
         <p className="text-xs text-loss">Los pesos suman {fmtNum(metricas.pesoTotal, 1, "%")}: ajustalos a 100% para presentar o ejecutar.</p>
+      )}
+    </div>
+  );
+}
+
+/** Diversificación por moneda: activar y, si se quiere, fijar la mezcla objetivo. */
+function SelectorMonedas({
+  perfil, fxs, onChange, bloqueado,
+}: { perfil: PerfilCliente; fxs: Record<string, number>; onChange: (p: Partial<PerfilCliente>) => void; bloqueado: boolean }) {
+  const disponibles = MONEDAS_PROPUESTA.filter((m) => m === perfil.moneda || fxs[m] != null);
+  const mezcla = perfil.mezclaMonedas ?? {};
+  const suma = Object.values(mezcla).reduce((s, v) => s + (Number(v) || 0), 0);
+  const setPct = (m: string, v: string) => {
+    const n = Number(v.replace(",", "."));
+    const nueva = { ...mezcla };
+    if (!v.trim() || !(n > 0)) delete nueva[m]; else nueva[m] = n;
+    onChange({ mezclaMonedas: nueva });
+  };
+  const sugerida = () => {
+    // Punto de partida razonable según el perfil; el asesor lo ajusta.
+    const base: Record<string, Record<string, number>> = {
+      conservador: { USD: 60, UI: 30, UYU: 10 },
+      moderado: { USD: 50, UI: 30, UYU: 20 },
+      agresivo: { USD: 40, UI: 25, UYU: 25, EUR: 10 },
+    };
+    const b = base[perfil.riesgo] ?? base.moderado;
+    onChange({ mezclaMonedas: Object.fromEntries(Object.entries(b).filter(([m]) => disponibles.includes(m as never))) });
+  };
+  return (
+    <div className="rounded-xl border border-ink-border bg-ink/40 px-4 py-3">
+      <label className="flex items-center gap-2 text-sm text-paper">
+        <input
+          type="checkbox"
+          checked={!!perfil.multimoneda}
+          disabled={bloqueado}
+          onChange={(e) => onChange({ multimoneda: e.target.checked })}
+          className="h-4 w-4 accent-[#171A21]"
+        />
+        Diversificar en varias monedas
+        <span className="text-xs text-muted">(dólares, pesos, UI, euros, reales)</span>
+      </label>
+      {perfil.multimoneda && (
+        <div className="mt-3 flex flex-col gap-2">
+          <p className="text-xs text-muted">
+            Mezcla objetivo por moneda, en % del monto. Dejá vacío para que la IA la proponga según el perfil.
+            Los importes se muestran en {perfil.moneda} al tipo de cambio de hoy.
+          </p>
+          <div className="flex flex-wrap items-end gap-2">
+            {disponibles.map((m) => (
+              <label key={m} className="flex flex-col gap-1 text-[11px] text-muted">
+                {NOMBRE_MONEDA[m] ?? m} ({m})
+                <div className="flex items-center gap-1">
+                  <input
+                    value={mezcla[m] != null ? String(mezcla[m]) : ""}
+                    onChange={(e) => setPct(m, e.target.value)}
+                    disabled={bloqueado}
+                    inputMode="decimal"
+                    placeholder="—"
+                    className="w-16 rounded border border-ink-border bg-ink-panel px-2 py-1 text-right text-sm text-paper"
+                  />
+                  <span>%</span>
+                </div>
+              </label>
+            ))}
+            {!bloqueado && (
+              <button type="button" onClick={sugerida} className="rounded border border-ink-border px-3 py-1.5 text-xs text-paper hover:border-gold">
+                Sugerir según perfil
+              </button>
+            )}
+          </div>
+          {suma > 0 && Math.abs(suma - 100) > 0.5 && (
+            <p className="text-xs text-warn">La mezcla suma {suma}%: la IA la toma como proporción y la ajusta a 100%.</p>
+          )}
+          <p className="text-[11px] text-muted">
+            Ojo: las tasas en pesos son nominales (incluyen inflación y devaluación esperadas), las de UI son reales y las de dólares o euros
+            van en esa divisa. Combinar monedas reduce la dependencia de una sola, pero suma riesgo cambiario.
+          </p>
+        </div>
       )}
     </div>
   );

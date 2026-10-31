@@ -8,7 +8,7 @@ import { CobrosCarteraChart } from "@/components/BondCharts";
 import { hoyIso } from "@/lib/bondMath";
 import { AVISO_SIMULACION, fmtFecha, fmtMonto, fmtNum } from "@/components/BondAnalysis";
 import TextoIA from "@/components/TextoIA";
-import { OBJETIVOS, RIESGOS, type MetricasCartera, type PerfilCliente } from "@/lib/propuesta";
+import { NOMBRE_MONEDA, OBJETIVOS, RIESGOS, type MetricasCartera, type PerfilCliente } from "@/lib/propuesta";
 import type { Costos } from "@/lib/costos";
 
 // Paleta del informe: sobria, con un acento por tipo de instrumento.
@@ -20,6 +20,7 @@ const COLOR_GRUPO: Record<string, string> = {
   Acciones: "#DB2777",
   Otros: "#94A3B8",
 };
+const COLOR_MONEDA: Record<string, string> = { USD: "#15803D", UYU: "#0EA5E9", UI: "#4F46E5", EUR: "#1E3A5F", BRL: "#D97706" };
 const SERIE = ["#1E3A5F", "#2563EB", "#60A5FA", "#0D9488", "#D97706", "#94A3B8"];
 const VERDE = "#15803D";
 
@@ -216,7 +217,10 @@ export default function InformePropuesta({
               {/* ─── Diversificación ─── */}
               <section className="avoid-break">
                 <Titulo n={sec()}>Diversificación</Titulo>
-                <div className="grid grid-cols-3 gap-5">
+                <div className={clsx("grid gap-5", m.monedas.length > 1 ? "grid-cols-2" : "grid-cols-3")}>
+                  {m.monedas.length > 1 && (
+                    <Distribucion titulo="Por moneda" datos={m.porMoneda.map((d) => ({ ...d, clave: `${NOMBRE_MONEDA[d.clave] ?? d.clave} (${d.clave})` }))} colorDe={(c, i) => COLOR_MONEDA[c.match(/\(([A-Z]+)\)$/)?.[1] ?? ""] ?? SERIE[i % SERIE.length]} />
+                  )}
                   <Distribucion titulo="Por tipo de instrumento" datos={m.porGrupo} colorDe={(c, i) => COLOR_GRUPO[c] ?? SERIE[i % SERIE.length]} />
                   <Distribucion titulo="Por plazo al vencimiento" datos={m.porPlazo} colorDe={(_, i) => SERIE[i % SERIE.length]} />
                   <div className="flex flex-col gap-2">
@@ -331,6 +335,13 @@ export default function InformePropuesta({
                   comisión sobre cupones según las tarifas vigentes (con IVA) y del IRPF retenido sobre cada pago de intereses. Supone cupón fijo,
                   capital al vencimiento y cupones no reinvertidos; en bonos que amortizan en cuotas el resultado es aproximado. Los precios de
                   ejecución pueden diferir de los utilizados.
+                  {m.monedas.length > 1 && (
+                    <>
+                      {" "}La cartera combina {m.monedas.join(", ")}: los importes se expresan en {moneda} al tipo de cambio del día y la
+                      rentabilidad total es un promedio ponderado de las tasas de cada moneda (nominales en pesos, reales en UI, en divisa para
+                      dólares y euros), sin proyectar variaciones cambiarias ni inflación.
+                    </>
+                  )}
                 </p>
                 <p className="mt-1.5">
                   <strong className="text-paper">Aviso.</strong> {AVISO_SIMULACION} Rendimientos proyectados no garantizan resultados futuros.

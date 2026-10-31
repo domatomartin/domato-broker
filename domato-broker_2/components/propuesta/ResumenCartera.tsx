@@ -57,6 +57,7 @@ export default function ResumenCartera({ m, moneda }: { m: MetricasCartera; mone
           <CobrosCarteraChart flujos={m.flujos} inversion={m.inversionTotal} moneda={mezcla ? null : moneda} />
         </div>
         <div className="flex flex-col gap-4">
+          {mezcla && <Barras titulo="Por moneda" datos={m.porMoneda} />}
           <Barras titulo="Por tipo de instrumento" datos={m.porGrupo} />
           <Barras titulo="Por plazo" datos={m.porPlazo} />
           <div className="grid grid-cols-2 gap-3 text-xs">

@@ -28,6 +28,8 @@ const SISTEMA = [
   "- tir_neta ya descuenta el IRPF retenido sobre intereses (irpf_pct): la deuda pública uruguaya está exonerada, los privados locales pagan 7% y los bonos del exterior 12%; tenelo en cuenta y mencionalo cuando sea relevante.",
   "- Las TIR de bonos en UI (unidades indexadas) o UP son reales, por encima de la inflación: no las compares directo con TIR nominales en pesos; una TIR real del 2-3% puede equivaler a una nominal mayor.",
   "- Los montos y pesos se expresan en la moneda del cliente; el sistema convierte a UI con la cotización del día.",
+  "- Si el cliente pide diversificar en varias monedas, repartís entre ellas (USD, pesos UYU, UI, EUR, BRL según los candidatos) y lo explicás: las TIR en pesos son nominales, en UI reales y en USD/EUR en divisa, así que no se comparan directo; mencionás el riesgo cambiario y para qué sirve cada moneda (cobertura de inflación, de devaluación, divisa fuerte).",
+  "- Usá todo el abanico de instrumentos que aparezca entre los candidatos (soberanos, letras, corporativos, fideicomisos, exterior) cuando encaje con el perfil.",
   "- Diversificás por emisor, tipo de instrumento y plazo; evitás concentrar más del 40% en un solo bono salvo que haya pocos candidatos.",
   "- Ajustás la mezcla al perfil: conservador prioriza soberanos uruguayos y plazos cortos/medios; agresivo admite más plazo y corporativos/fideicomisos con mayor TIR.",
   "- Si el objetivo es renta, preferís bonos con cupón; si es preservar, plazos cortos y emisores soberanos.",
@@ -36,7 +38,11 @@ const SISTEMA = [
 ].join("\n");
 
 function perfilTexto(p: PerfilCliente, cliente: string) {
-  return `Cliente: ${cliente || "(sin nombre)"}\nMonto: ${p.monto} ${p.moneda}\nPlazo máximo: ${p.plazoMaxAnios} años\nPerfil de riesgo: ${p.riesgo}\nObjetivo: ${p.objetivo}\nNotas del asesor: ${p.notas || "—"}`;
+  const mezcla = Object.entries(p.mezclaMonedas ?? {}).filter(([, v]) => Number(v) > 0);
+  const monedas = p.multimoneda
+    ? `\nDiversificación por moneda: SÍ. ${mezcla.length ? `Mezcla objetivo: ${mezcla.map(([m, v]) => `${m} ${v}%`).join(", ")} (respetala con ±5 puntos).` : "Mezcla a criterio tuyo según el perfil (por ejemplo, núcleo en USD y una parte en UI y pesos)."}`
+    : "\nDiversificación por moneda: no, todo en la moneda del cliente.";
+  return `Cliente: ${cliente || "(sin nombre)"}\nMonto: ${p.monto} ${p.moneda}\nPlazo máximo: ${p.plazoMaxAnios} años\nPerfil de riesgo: ${p.riesgo}\nObjetivo: ${p.objetivo}${monedas}\nNotas del asesor: ${p.notas || "—"}`;
 }
 
 function extraerJson(texto: string): unknown {
@@ -88,7 +94,7 @@ export async function POST(req: NextRequest) {
         "Bonos candidatos disponibles (JSON; tir_neta y tir_bruta en % anual, precios cada 100 de nominal):",
         JSON.stringify(body.candidatos),
         "",
-        "Elegí entre 3 y 6 bonos SOLO de esa lista (usá el isin exacto) y asigná un peso en % a cada uno que sume 100.",
+        body.perfil.multimoneda ? "Elegí entre 5 y 10 bonos SOLO de esa lista, combinando monedas (usá el isin exacto) y asigná un peso en % a cada uno que sume 100. Los pesos son sobre el monto total en la moneda del cliente." : "Elegí entre 3 y 6 bonos SOLO de esa lista (usá el isin exacto) y asigná un peso en % a cada uno que sume 100.",
         "Devolvé SOLO esto, sin texto afuera:",
         "<json>",
         '{"items":[{"isin":"...","peso":30,"motivo":"una frase de por qué"}],',

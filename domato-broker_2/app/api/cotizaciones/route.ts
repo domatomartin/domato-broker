@@ -4,6 +4,8 @@ export type Tasas = {
   UYU_per_USD: number;
   ARS_per_USD: number;
   UI_in_UYU: number;
+  EUR_per_USD?: number;
+  BRL_per_USD?: number;
   fetched_at: string;
 };
 
@@ -27,6 +29,8 @@ export async function GET() {
 
   let UYU_per_USD = FALLBACK.UYU_per_USD;
   let ARS_per_USD = FALLBACK.ARS_per_USD;
+  let EUR_per_USD: number | undefined;
+  let BRL_per_USD: number | undefined;
 
   try {
     const res = await fetch("https://open.er-api.com/v6/latest/USD", {
@@ -37,6 +41,8 @@ export async function GET() {
       if (data.result === "success") {
         UYU_per_USD = data.rates?.UYU ?? FALLBACK.UYU_per_USD;
         ARS_per_USD = data.rates?.ARS ?? FALLBACK.ARS_per_USD;
+        EUR_per_USD = data.rates?.EUR;
+        BRL_per_USD = data.rates?.BRL;
       }
     }
   } catch {
@@ -47,6 +53,8 @@ export async function GET() {
     UYU_per_USD,
     ARS_per_USD,
     UI_in_UYU: FALLBACK.UI_in_UYU,
+    EUR_per_USD,
+    BRL_per_USD,
     fetched_at: new Date().toISOString(),
   };
 

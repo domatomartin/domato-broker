@@ -14,6 +14,16 @@ export type PerfilCliente = {
   riesgo: Riesgo;
   objetivo: Objetivo;
   notas: string;
+  /** Diversificar en varias monedas (USD, pesos, UI, euros, reales…). */
+  multimoneda?: boolean;
+  /** Mezcla objetivo por moneda en % (opcional; vacío = la decide la IA). */
+  mezclaMonedas?: Record<string, number>;
+};
+
+/** Monedas que se pueden combinar en una propuesta (con cotización disponible). */
+export const MONEDAS_PROPUESTA = ["USD", "UYU", "UI", "EUR", "BRL"] as const;
+export const NOMBRE_MONEDA: Record<string, string> = {
+  USD: "Dólares", UYU: "Pesos", UI: "Unidades indexadas", EUR: "Euros", BRL: "Reales",
 };
 
 export const PERFIL_DEFECTO: PerfilCliente = {
@@ -131,6 +141,7 @@ export type MetricasCartera = {
   monedas: string[];
   porGrupo: { clave: string; pct: number }[];
   porPlazo: { clave: string; pct: number }[];
+  porMoneda: { clave: string; pct: number }[];
   porAnio: { anio: string; interes: number; capital: number }[];
   flujos: { anios: number; total: number; fecha: string }[];
 };
@@ -168,11 +179,20 @@ function agrupar(lineas: LineaCalculada[], clave: (l: LineaCalculada) => string,
  */
 export type TiposDeCambio = Record<string, number>;
 
-export function tiposParaPerfil(moneda: PerfilCliente["moneda"], t: { UYU_per_USD: number; UI_in_UYU: number } | null): TiposDeCambio {
+export type Cotizaciones = { UYU_per_USD: number; UI_in_UYU: number; EUR_per_USD?: number; BRL_per_USD?: number };
+
+export function tiposParaPerfil(moneda: PerfilCliente["moneda"], t: Cotizaciones | null): TiposDeCambio {
   if (!t) return {};
-  if (moneda === "UYU") return { UYU: 1, UI: t.UI_in_UYU, USD: t.UYU_per_USD };
-  if (moneda === "USD") return { USD: 1, UYU: 1 / t.UYU_per_USD, UI: t.UI_in_UYU / t.UYU_per_USD };
-  return { UI: 1, UYU: 1 / t.UI_in_UYU };
+  // Valor de 1 unidad de cada moneda en dólares; después se pasa a la moneda del perfil.
+  const enUsd: Record<string, number> = {
+    USD: 1,
+    UYU: 1 / t.UYU_per_USD,
+    UI: t.UI_in_UYU / t.UYU_per_USD,
+  };
+  if (t.EUR_per_USD) enUsd.EUR = 1 / t.EUR_per_USD;
+  if (t.BRL_per_USD) enUsd.BRL = 1 / t.BRL_per_USD;
+  const base = enUsd[moneda];
+  return Object.fromEntries(Object.entries(enUsd).map(([k, v]) => [k, v / base]));
 }
 
 /** Calcula la propuesta como cartera: cada bono con su monto, costos, y los agregados (en la moneda del perfil). */
@@ -238,6 +258,7 @@ export function calcularCartera(items: ItemPropuesta[], montoTotal: number, cost
     monedas,
     porGrupo: agrupar(lineas, (l) => l.grupo, montoAsignado),
     porPlazo: agrupar(lineas, (l) => bucketPlazo(l.a.aniosAlVencimiento), montoAsignado),
+    porMoneda: agrupar(lineas, (l) => l.item.moneda, montoAsignado),
     porAnio: [...porAnioMap.entries()].sort().map(([anio, v]) => ({ anio, ...v })),
     flujos: flujosNetos.sort((a, b) => a.anios - b.anios),
   };
@@ -264,9 +285,21 @@ export function monedasCompatibles(moneda: PerfilCliente["moneda"]): string[] {
   return ["USD"];
 }
 
+/** Monedas que puede usar la propuesta según el perfil (y las cotizaciones disponibles). */
+export function monedasDelPerfil(perfil: PerfilCliente, fxs: TiposDeCambio = {}): string[] {
+  if (!perfil.multimoneda) return monedasCompatibles(perfil.moneda);
+  const conCotizacion = MONEDAS_PROPUESTA.filter((m) => m === perfil.moneda || fxs[m] != null);
+  const mezcla = perfil.mezclaMonedas ?? {};
+  const elegidas = conCotizacion.filter((m) => (mezcla[m] ?? 0) > 0);
+  return elegidas.length ? elegidas : [...conCotizacion];
+}
+
 /** Candidatos del catálogo para que la IA elija: completos, en moneda y plazo del perfil. */
-export function candidatosPara(perfil: PerfilCliente, instrumentos: Instrumento[], costos: Costos) {
-  const monedas = monedasCompatibles(perfil.moneda);
+export function candidatosPara(perfil: PerfilCliente, instrumentos: Instrumento[], costos: Costos, fxs: TiposDeCambio = {}) {
+  const monedas = monedasDelPerfil(perfil, fxs);
+  // En multimoneda se toman los mejores de cada moneda, para que no ganen siempre los pesos (TIR nominal más alta).
+  const porMoneda = perfil.multimoneda ? 18 : 60;
+  const cuenta: Record<string, number> = {};
   return instrumentos
     .filter((i) => monedas.includes(i.moneda))
     .map((i) => {
@@ -278,7 +311,8 @@ export function candidatosPara(perfil: PerfilCliente, instrumentos: Instrumento[
     .filter((c) => c.a.completo && c.neto?.tirNeta != null && (c.a.aniosAlVencimiento ?? 99) <= perfil.plazoMaxAnios + 0.5)
     .filter((c) => grupoDe(c.i) !== "Acciones")
     .sort((x, y) => (y.neto!.tirNeta ?? 0) - (x.neto!.tirNeta ?? 0))
-    .slice(0, 60)
+    .filter((c) => (cuenta[c.i.moneda] = (cuenta[c.i.moneda] ?? 0) + 1) <= porMoneda)
+    .slice(0, 80)
     .map((c) => ({
       isin: c.i.isin,
       nombre: c.i.nombre,
