@@ -174,9 +174,9 @@ export async function POST(req: NextRequest) {
         "## Plan a 12 meses: lo mismo a un año, incluyendo reinversión de cupones y vencimientos.",
         "## Señales de alerta y qué hacer: 4-7 viñetas con formato **Si <condición medible con un umbral concreto>** → acción concreta (por ejemplo vender parte de un bono a través del corredor, acortar plazo, reforzar una moneda, reinvertir en tal tipo de instrumento). Usá umbrales numéricos sobre los datos de mercado de arriba o sobre el precio de los bonos.",
         "## Próximas revisiones: fechas sugeridas (a 3, 6 y 12 meses) y qué mirar en cada una.",
-        "Viñetas con - y negritas con **. Máximo 450 palabras. Devolvé solo el texto. No es una predicción: es un plan de seguimiento.",
+        "Viñetas con - y negritas con **. Sé concreto: máximo 550 palabras en total, 3-4 viñetas por sección. Devolvé solo el texto. No es una predicción: es un plan de seguimiento.",
       ].join("\n");
-      const { texto, model } = await preguntar(prompt, 2500);
+      const { texto, model } = await preguntar(prompt, 5000);
       return NextResponse.json({ estrategia: texto.trim(), mercado, model });
     }
 
@@ -210,7 +210,7 @@ export async function POST(req: NextRequest) {
         "## Próxima revisión: cuándo y qué mirar.",
         "Viñetas con - y negritas con **. Máximo 350 palabras. Devolvé solo el texto. Es una sugerencia para el criterio del asesor.",
       ].join("\n");
-      const { texto, model } = await preguntar(prompt, 2000);
+      const { texto, model } = await preguntar(prompt, 4000);
       return NextResponse.json({ revision: texto.trim(), mercado, model });
     }
 
