@@ -107,6 +107,22 @@ function fechaIso(dd: string, mm: string, yy: string): string | null {
 // Correcciones verificadas en el prospecto: la BVM agrupa estas emisiones con otra moneda.
 const MONEDA_CORREGIDA: Record<string, string> = {
   EU000A4D7YR5: "BRL", // BEI 11% 03/07/2030, en reales
+  // Multilaterales (BEI, BERD, BIRF, BAsD, IFC, AIIB) que cotizan en reales o pesos colombianos (ficha BVM)
+  EU000A4EDR76: "BRL",
+  EU000A4EUYQ0: "BRL",
+  EU000A3L6Q42: "BRL",
+  XS3238398245: "BRL",
+  XS3317523044: "BRL",
+  XS2875795945: "BRL",
+  XS3239974978: "BRL",
+  XS2438631710: "BRL",
+  XS2436920321: "BRL",
+  XS2920414112: "BRL",
+  XS2431032403: "BRL",
+  XS2934329967: "BRL",
+  XS1621760302: "BRL",
+  XS3293838655: "COP",
+  XS2991233086: "COP",
 };
 
 export function monedaDe(especie: string | null, isin: string): string {
