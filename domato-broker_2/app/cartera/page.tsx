@@ -20,7 +20,7 @@ type CuentaFiltro = "todas" | string;
 type MonedaFiltro = "todas" | "USD" | "UYU" | "ARS" | "UI";
 type TipoFiltro = "todos" | "bono" | "accion";
 type OrigenFiltro = "todos" | "local" | "exterior";
-type Tasas = TasasFx & { ARS_per_USD: number; fetched_at: string };
+type Tasas = TasasFx & { ARS_per_USD: number; fetched_at: string; UI_fecha?: string | null; UI_fuente?: "BCU" | "respaldo" };
 
 function formatValorResumen(value: number, moneda: string) {
   const isosValidos = ["USD", "UYU", "ARS", "EUR", "BRL"];
@@ -264,7 +264,7 @@ export default function CarteraPage() {
               {formatMoney(totalUSD, "USD")}
             </p>
             <p className="text-xs text-muted mt-1">
-              1 USD = {tasas!.UYU_per_USD.toFixed(2)} UYU · 1 UI = {tasas!.UI_in_UYU.toFixed(4)} UYU · 1 USD = {tasas!.ARS_per_USD.toFixed(0)} ARS{tasas!.EUR_per_USD ? ` · 1 EUR = ${(1 / tasas!.EUR_per_USD).toFixed(3)} USD` : ""}{tasas!.BRL_per_USD ? ` · 1 USD = ${tasas!.BRL_per_USD.toFixed(2)} BRL` : ""}
+              1 USD = {tasas!.UYU_per_USD.toFixed(2)} UYU · 1 UI = {tasas!.UI_in_UYU.toFixed(4)} UYU{tasas!.UI_fuente === "BCU" && tasas!.UI_fecha ? ` (BCU ${tasas!.UI_fecha.split("-").reverse().join("/")})` : " (valor de respaldo)"} · 1 USD = {tasas!.ARS_per_USD.toFixed(0)} ARS{tasas!.EUR_per_USD ? ` · 1 EUR = ${(1 / tasas!.EUR_per_USD).toFixed(3)} USD` : ""}{tasas!.BRL_per_USD ? ` · 1 USD = ${tasas!.BRL_per_USD.toFixed(2)} BRL` : ""}
             </p>
           </div>
         </div>

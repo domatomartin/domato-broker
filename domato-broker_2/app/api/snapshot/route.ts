@@ -1,4 +1,5 @@
 import { aUSD, type TasasFx } from "@/lib/fx";
+import { valorUI } from "@/lib/bcu";
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { autorizadoCronOUsuario } from "@/lib/authServer";
@@ -15,6 +16,10 @@ const FALLBACK_TASAS = {
 };
 
 async function fetchTasas(): Promise<TasasFx> {
+  return { ...(await fetchTasasBase()), UI_in_UYU: (await valorUI()).valor };
+}
+
+async function fetchTasasBase(): Promise<TasasFx> {
   try {
     const res = await fetch("https://open.er-api.com/v6/latest/USD", {
       signal: AbortSignal.timeout(8000),

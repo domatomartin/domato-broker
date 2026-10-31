@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { valorUI } from "@/lib/bcu";
 
 export type Tasas = {
   UYU_per_USD: number;
@@ -6,6 +7,8 @@ export type Tasas = {
   UI_in_UYU: number;
   EUR_per_USD?: number;
   BRL_per_USD?: number;
+  UI_fecha?: string | null;
+  UI_fuente?: "BCU" | "respaldo";
   fetched_at: string;
 };
 
@@ -49,10 +52,14 @@ export async function GET() {
     // usar fallback si la API externa falla
   }
 
+  const ui = await valorUI();
+
   const tasas: Tasas = {
     UYU_per_USD,
     ARS_per_USD,
-    UI_in_UYU: FALLBACK.UI_in_UYU,
+    UI_in_UYU: ui.valor,
+    UI_fecha: ui.fecha,
+    UI_fuente: ui.fuente,
     EUR_per_USD,
     BRL_per_USD,
     fetched_at: new Date().toISOString(),
