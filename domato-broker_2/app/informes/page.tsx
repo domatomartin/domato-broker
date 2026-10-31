@@ -1,12 +1,14 @@
 "use client";
 
+import { aUSD, type TasasFx } from "@/lib/fx";
+
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { Bond, PatrimonioSnapshot } from "@/lib/types";
 import { computePortfolio, portfolioTotals, formatMoney, formatPct } from "@/lib/calculations";
 import { Panel } from "@/components/Card";
 
-type Tasas = { UYU_per_USD: number; ARS_per_USD: number; UI_in_UYU: number; fetched_at: string };
+type Tasas = TasasFx & { ARS_per_USD: number; fetched_at: string };
 
 function formatValorPDF(value: number, moneda: string): string {
   const isosValidos = ["USD", "UYU", "ARS", "EUR", "BRL"];
@@ -17,11 +19,7 @@ function formatValorPDF(value: number, moneda: string): string {
 }
 
 function calcTotalUSD(totales: Record<string, { valorTotal: number }>, tasas: Tasas): number {
-  const usd = totales["USD"]?.valorTotal ?? 0;
-  const uyu = (totales["UYU"]?.valorTotal ?? 0) / tasas.UYU_per_USD;
-  const ui = ((totales["UI"]?.valorTotal ?? 0) * tasas.UI_in_UYU) / tasas.UYU_per_USD;
-  const ars = (totales["ARS"]?.valorTotal ?? 0) / tasas.ARS_per_USD;
-  return usd + uyu + ui + ars;
+  return Object.entries(totales).reduce((s, [m, t]) => s + aUSD(t.valorTotal, m, tasas), 0);
 }
 
 export default function InformesPage() {

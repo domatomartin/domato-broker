@@ -1,3 +1,4 @@
+import { aUSD, type TasasFx } from "@/lib/fx";
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { autorizadoCronOUsuario } from "@/lib/authServer";
@@ -13,7 +14,7 @@ const FALLBACK_TASAS = {
   UI_in_UYU: 6.6026, // actualizar mensualmente desde BCU/INE
 };
 
-async function fetchTasas() {
+async function fetchTasas(): Promise<TasasFx> {
   try {
     const res = await fetch("https://open.er-api.com/v6/latest/USD", {
       signal: AbortSignal.timeout(8000),
@@ -25,6 +26,8 @@ async function fetchTasas() {
           UYU_per_USD: data.rates?.UYU ?? FALLBACK_TASAS.UYU_per_USD,
           ARS_per_USD: data.rates?.ARS ?? FALLBACK_TASAS.ARS_per_USD,
           UI_in_UYU: FALLBACK_TASAS.UI_in_UYU,
+          EUR_per_USD: data.rates?.EUR,
+          BRL_per_USD: data.rates?.BRL,
         };
       }
     }
@@ -34,11 +37,8 @@ async function fetchTasas() {
   return FALLBACK_TASAS;
 }
 
-function toUSD(valor: number, moneda: string, tasas: typeof FALLBACK_TASAS): number {
-  if (moneda === "UYU") return valor / tasas.UYU_per_USD;
-  if (moneda === "UI") return (valor * tasas.UI_in_UYU) / tasas.UYU_per_USD;
-  if (moneda === "ARS") return valor / tasas.ARS_per_USD;
-  return valor; // USD u otras
+function toUSD(valor: number, moneda: string, tasas: TasasFx): number {
+  return aUSD(valor, moneda, tasas);
 }
 
 export async function GET(request: Request) {

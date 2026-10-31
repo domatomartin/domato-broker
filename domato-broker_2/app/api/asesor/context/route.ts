@@ -1,3 +1,4 @@
+import { aUSD, type TasasFx } from "@/lib/fx";
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { usuarioDesdeRequest } from "@/lib/authServer";
@@ -9,15 +10,9 @@ interface Bond {
   proximo_pago_interes: string | null; proximo_vencimiento: string | null;
   cuenta: string | null;
 }
-interface Tasas { UYU_per_USD: number; ARS_per_USD: number; UI_in_UYU: number; }
+type Tasas = TasasFx & { ARS_per_USD: number };
 
-function toUSD(v: number, m: string, t: Tasas): number {
-  if (m === "USD") return v;
-  if (m === "UYU") return v / t.UYU_per_USD;
-  if (m === "UI")  return (v * t.UI_in_UYU) / t.UYU_per_USD;
-  if (m === "ARS") return v / t.ARS_per_USD;
-  return v;
-}
+const toUSD = (v: number, m: string, t: Tasas) => aUSD(v, m, t);
 function calcVM(b: Bond) { return (b.precio_actual / 100) * b.valor_nominal * b.cantidad; }
 function daysUntil(d: string) { return Math.ceil((new Date(d).getTime() - Date.now()) / 86400000); }
 function fmtUSD(n: number) { return new Intl.NumberFormat("es-UY",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(n); }
