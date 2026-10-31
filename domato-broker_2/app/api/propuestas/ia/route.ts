@@ -45,11 +45,30 @@ function perfilTexto(p: PerfilCliente, cliente: string) {
   return `Cliente: ${cliente || "(sin nombre)"}\nMonto: ${p.monto} ${p.moneda}\nPlazo máximo: ${p.plazoMaxAnios} años\nPerfil de riesgo: ${p.riesgo}\nObjetivo: ${p.objetivo}${monedas}\nNotas del asesor: ${p.notas || "—"}`;
 }
 
-function extraerJson(texto: string): unknown {
-  const tag = texto.match(/<json>([\s\S]*?)<\/json>/i)?.[1];
-  const bruto = tag ?? texto.match(/\{[\s\S]*\}/)?.[0];
-  if (!bruto) throw new Error("La IA no devolvió datos estructurados.");
-  return JSON.parse(bruto);
+type Elegido = { isin: string; peso: number; motivo?: string };
+
+/**
+ * Lee los bonos elegidos. Primero como JSON; si viene mal formado (comillas sin escapar,
+ * respuesta cortada), rescata cada objeto por separado con una expresión regular.
+ */
+function extraerItems(texto: string): Elegido[] {
+  const bruto = texto.match(/<json>([\s\S]*?)(<\/json>|$)/i)?.[1] ?? texto;
+  try {
+    const j = JSON.parse(bruto.trim()) as { items?: Elegido[] } | Elegido[];
+    const lista = Array.isArray(j) ? j : j.items;
+    if (lista?.length) return lista;
+  } catch {
+    // sigue al rescate
+  }
+  const items: Elegido[] = [];
+  const re = /"isin"\s*:\s*"([A-Z0-9]{12})"[^{}]*?"peso"\s*:\s*([\d.]+)(?:[^{}]*?"motivo"\s*:\s*"((?:[^"\\]|\\.)*))?/g;
+  for (const m of bruto.matchAll(re)) items.push({ isin: m[1], peso: Number(m[2]), motivo: m[3]?.replace(/\\"/g, '"') });
+  if (!items.length) throw new Error("La IA no devolvió la lista de bonos en el formato esperado; probá de nuevo.");
+  return items;
+}
+
+function extraerAnalisis(texto: string): string {
+  return texto.match(/<analisis>([\s\S]*?)(<\/analisis>|$)/i)?.[1]?.trim() ?? "";
 }
 
 async function preguntar(prompt: string, maxTokens: number) {
@@ -95,14 +114,18 @@ export async function POST(req: NextRequest) {
         JSON.stringify(body.candidatos),
         "",
         body.perfil.multimoneda ? "Elegí entre 5 y 10 bonos SOLO de esa lista, combinando monedas (usá el isin exacto) y asigná un peso en % a cada uno que sume 100. Los pesos son sobre el monto total en la moneda del cliente." : "Elegí entre 3 y 6 bonos SOLO de esa lista (usá el isin exacto) y asigná un peso en % a cada uno que sume 100.",
-        "Devolvé SOLO esto, sin texto afuera:",
+        "Respondé en dos bloques y nada más:",
+        "1) La lista de bonos como JSON válido (sin comillas dobles dentro de los textos; el motivo, una frase corta):",
         "<json>",
-        '{"items":[{"isin":"...","peso":30,"motivo":"una frase de por qué"}],',
-        ' "analisis":"Texto para el informe con estas secciones, cada una como línea que empieza con ## : ## Estrategia, ## Por qué estos bonos, ## Riesgos a considerar, ## Seguimiento sugerido. Usá viñetas con - y negritas con **. Máximo 350 palabras."}',
+        '{"items":[{"isin":"...","peso":30,"motivo":"una frase de por qué"}]}',
         "</json>",
+        "2) El texto para el informe, en texto común (no JSON), con estas secciones, cada una como línea que empieza con ## : ## Estrategia, ## Por qué estos bonos, ## Riesgos a considerar, ## Seguimiento sugerido. Viñetas con - y negritas con **. Máximo 350 palabras.",
+        "<analisis>",
+        "...",
+        "</analisis>",
       ].join("\n");
-      const { texto, model } = await preguntar(prompt, 2500);
-      const json = extraerJson(texto) as { items?: { isin: string; peso: number; motivo?: string }[]; analisis?: string };
+      const { texto, model } = await preguntar(prompt, 4000);
+      const json = { items: extraerItems(texto), analisis: extraerAnalisis(texto) };
 
       const validos = new Set(body.candidatos.map((c) => c.isin));
       const items = (json.items ?? []).filter((x) => validos.has(x.isin) && Number(x.peso) > 0);
