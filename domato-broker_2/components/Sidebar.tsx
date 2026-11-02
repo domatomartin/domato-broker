@@ -60,6 +60,8 @@ export const groups: {
     label: "Reportes",
     items: [
       { href: "/estado-cuenta", label: "Estado de cuenta", icon: FileBarChart },
+      { href: "/cobros", label: "Calendario de cobros", icon: CalendarDays },
+      { href: "/irpf", label: "Constancia IRPF", icon: FileBarChart },
       { href: "/informes", label: "Informes", icon: FileBarChart },
     ],
   },
