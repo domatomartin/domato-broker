@@ -62,6 +62,9 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     if (pathname === "/cuenta/clave") window.location.href = "/dashboard";
   }
 
+  // Portal del cliente: página pública de solo lectura (el link con token es la llave).
+  if (pathname?.startsWith("/portal/")) return <>{children}</>;
+
   const cambiando = recuperando || pathname === "/cuenta/clave";
   if (session && session !== "loading" && cambiando) {
     const campo = "rounded border border-ink-border bg-ink px-3 py-2.5 text-sm text-paper focus:outline-none focus:ring-2 focus:ring-gold";

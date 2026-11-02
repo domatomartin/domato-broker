@@ -11,6 +11,7 @@ import { useDatosCartera } from "@/lib/useDatosCartera";
 import { cobrosDeCartera, posiciones, resumen } from "@/lib/estadoCuenta";
 import Comparador, { type FilaCliente } from "@/components/clientes/Comparador";
 import Reinversion from "@/components/clientes/Reinversion";
+import PortalLinks from "@/components/clientes/PortalLinks";
 import DetalleInstrumento from "@/components/DetalleInstrumento";
 import type { Instrumento } from "@/lib/bvm";
 
@@ -156,6 +157,10 @@ export default function ClientesPage() {
 
       <Panel title="Reinversión: capital que vuelve a los clientes">
         <Reinversion filas={filasCliente} instrumentos={datos.instrumentos} tasas={datos.tasas} costos={datos.costos} onDetalle={setDetalle} />
+      </Panel>
+
+      <Panel title="Portal para clientes">
+        <PortalLinks clientes={filasCliente.map((f) => ({ c: f.c, nombre: f.nombre }))} />
       </Panel>
 
       {detalle && <DetalleInstrumento i={detalle} costos={datos.costos} onClose={() => setDetalle(null)} />}
