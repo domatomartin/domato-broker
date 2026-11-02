@@ -165,7 +165,7 @@ export default function OpcionesPage() {
         const e = efectivo(i);
         return {
           i,
-          a: analizarBono({ cupon: e.cupon, frecuencia: e.frecuencia, vencimiento: e.vencimiento, precio: e.precio }),
+          a: analizarBono({ cupon: e.cupon, frecuencia: e.frecuencia, vencimiento: e.vencimiento, precio: e.precio, amortizaciones: e.amortizaciones, escalonado: e.escalonado }),
           grupo: grupoDe(i),
           frecuenciaSupuesta: e.frecuenciaSupuesta,
         };
@@ -536,6 +536,8 @@ function TarjetaBono({
             <BadgeMoneda m={f.i.moneda} />
             <span className={clsx("rounded-md px-1.5 py-0.5 text-[10px] font-medium", c.etiqueta)}>{f.grupo}</span>
             {e.letra && <span className="rounded-md bg-ink px-1.5 py-0.5 text-[10px] text-muted">Letra</span>}
+            {!!e.amortizaciones?.length && <span className="rounded-md bg-[#0D9488]/10 px-1.5 py-0.5 text-[10px] font-medium text-[#0F766E]">Amortiza en cuotas</span>}
+            {!!e.escalonado?.length && <span className="rounded-md bg-[#7C3AED]/10 px-1.5 py-0.5 text-[10px] font-medium text-[#6D28D9]">Cupón escalonado</span>}
           </div>
           <p className="text-sm font-semibold leading-snug text-paper line-clamp-2">{f.i.nombre}</p>
           <p className="mt-0.5 text-[10px] text-muted truncate">{f.i.isin}{f.i.codigo && ` · ${f.i.codigo}`}</p>

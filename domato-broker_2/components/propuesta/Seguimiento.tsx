@@ -56,7 +56,7 @@ export default function Seguimiento({
   const filas = p.ejecucion.map((x) => {
     const item = p.items.find((i) => i.isin === x.isin)!;
     const prop = propuesta.lineas.find((l) => l.item.isin === x.isin);
-    const datos = { cupon: item.cupon, frecuencia: item.frecuencia, vencimiento: item.vencimiento };
+    const datos = { cupon: item.cupon, frecuencia: item.frecuencia, vencimiento: item.vencimiento, amortizaciones: item.amortizaciones ?? catalogo.get(x.isin)?.amortizaciones, escalonado: item.escalonado ?? catalogo.get(x.isin)?.escalonado };
     const aEj = analizarBono({ ...datos, precio: x.precio_compra }, x.fecha);
     const ej = aEj.completo ? aplicarCostos(aEj, x.valor_nominal, costos, irpfDe(costos, item)) : null;
 

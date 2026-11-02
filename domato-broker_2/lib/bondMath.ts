@@ -11,11 +11,18 @@
 //   Para bonos en UI/UP es una tasa real en esa unidad.
 // - Precios cada 100 de valor nominal.
 
+/** Pago de capital: fecha y % del nominal ORIGINAL que se devuelve. */
+export type Amortizacion = { fecha: string; pct: number };
+/** Tasa de cupón que rige desde una fecha (bonos con cupón escalonado). */
+export type TramoCupon = { desde: string; tasa: number };
+
 export type DatosBono = {
-  cupon: number | null;          // tasa anual en %, p.ej. 7.625
+  cupon: number | null;          // tasa anual en %, p.ej. 7.625 (la vigente si es escalonado)
   frecuencia?: number | null;    // pagos por año (1, 2, 4, 12); por defecto 2
   vencimiento: string | null;    // YYYY-MM-DD
-  precio: number | null;         // precio limpio (sin cupón) cada 100 VN
+  precio: number | null;         // precio limpio cada 100 de nominal RESIDUAL (lo que queda sin amortizar)
+  amortizaciones?: Amortizacion[] | null; // si falta, todo el capital al vencimiento
+  escalonado?: TramoCupon[] | null;       // si falta, cupón fijo
 };
 
 export type Flujo = {
@@ -129,23 +136,49 @@ export function analizarBono(d: DatosBono, fechaCalculo: string = hoyIso()): Ana
 
   const hoy = aFecha(fechaCalculo);
   const { anterior, futuras } = calendarioCupones(d.vencimiento, frecuencia, fechaCalculo);
-  const cuponPeriodo = d.cupon / frecuencia; // cada 100 VN
+
+  // Tasa vigente en un período (cupón escalonado: la del último tramo que empezó antes del inicio del período).
+  const tramos = [...(d.escalonado ?? [])].filter((t) => t.desde && Number.isFinite(t.tasa)).sort((a, b) => a.desde.localeCompare(b.desde));
+  const tasaEn = (inicio: Date) => {
+    let t = d.cupon as number;
+    for (const x of tramos) if (aFecha(x.desde) <= inicio) t = x.tasa;
+    return t;
+  };
+
+  // Amortizaciones: cada pago se asigna a la primera fecha de cupón desde (fecha − 7 días).
+  const amorts = [...(d.amortizaciones ?? [])].filter((a) => a.fecha && a.pct > 0).sort((a, b) => a.fecha.localeCompare(b.fecha));
+  const yaAmortizado = amorts.filter((a) => aFecha(a.fecha) <= hoy).reduce((s, a) => s + a.pct, 0);
+  const residual = Math.max(0, 100 - yaAmortizado); // % del nominal original que queda hoy
+  if (residual <= 0) return { ...vacio, faltan: ["capital ya amortizado"] };
+  const k = 100 / residual; // pasa importes "cada 100 originales" a "cada 100 residuales"
 
   const largoPeriodo = (futuras[0].getTime() - anterior.getTime()) / DIA;
   const transcurrido = (hoy.getTime() - anterior.getTime()) / DIA;
   const w = 1 - transcurrido / largoPeriodo; // fracción del período hasta el próximo cupón
 
+  let pendiente = residual;
+  const usados = new Set<number>();
   const flujos: Flujo[] = futuras.map((f, i) => {
-    const amortizacion = i === futuras.length - 1 ? 100 : 0;
+    const inicio = i === 0 ? anterior : futuras[i - 1];
+    const interes = (tasaEn(inicio) / frecuencia) * (pendiente / 100);
+    let amort = 0;
+    amorts.forEach((a, j) => {
+      if (usados.has(j) || aFecha(a.fecha) <= hoy) return;
+      if (aFecha(a.fecha).getTime() - 7 * DIA <= f.getTime()) { amort += a.pct; usados.add(j); }
+    });
+    if (i === futuras.length - 1) amort = pendiente; // al vencimiento se devuelve lo que quede
+    amort = Math.min(amort, pendiente);
+    pendiente -= amort;
     return {
       fecha: iso(f),
-      interes: cuponPeriodo,
-      amortizacion,
-      total: cuponPeriodo + amortizacion,
+      interes: interes * k,
+      amortizacion: amort * k,
+      total: (interes + amort) * k,
       anios: (i + w) / frecuencia,
     };
   });
 
+  const cuponPeriodo = tasaEn(anterior) / frecuencia; // cada 100 residuales, período en curso
   const interesCorrido = cuponPeriodo * Math.max(0, Math.min(1, transcurrido / largoPeriodo));
   const precioSucio = d.precio + interesCorrido;
 
@@ -162,11 +195,11 @@ export function analizarBono(d: DatosBono, fechaCalculo: string = hoyIso()): Ana
   }
 
   const totalIntereses = flujos.reduce((s, f) => s + f.interes, 0);
-  const totalACobrar = totalIntereses + 100;
+  const totalACobrar = totalIntereses + flujos.reduce((s, f) => s + f.amortizacion, 0);
 
   return {
     completo: true,
-    cupon: d.cupon,
+    cupon: tasaEn(anterior),
     frecuencia,
     faltan: [],
     flujos,
@@ -176,7 +209,7 @@ export function analizarBono(d: DatosBono, fechaCalculo: string = hoyIso()): Ana
     precioSucio,
     tir: tir != null ? tir * 100 : null,
     tirNominal: tir != null ? (Math.pow(1 + tir, 1 / frecuencia) - 1) * frecuencia * 100 : null,
-    currentYield: (d.cupon / d.precio) * 100,
+    currentYield: ((tasaEn(anterior)) / d.precio) * 100,
     duration,
     durationModificada,
     convexidad,
@@ -224,10 +257,11 @@ export function sensibilidad(a: AnalisisBono, deltasPb: number[] = [-200, -100, 
 
 /** Cobros acumulados en el tiempo (c/100), para graficar contra lo invertido. */
 export function cobrosAcumulados(a: AnalisisBono) {
-  let acc = 0;
+  let acc = 0, cap = 0;
   return a.flujos.map((f) => {
     acc += f.total;
-    return { fecha: f.fecha, anios: f.anios, acumulado: acc, interesesAcumulados: acc - (f.amortizacion ? 100 : 0) };
+    cap += f.amortizacion;
+    return { fecha: f.fecha, anios: f.anios, acumulado: acc, interesesAcumulados: acc - cap };
   });
 }
 

@@ -198,6 +198,8 @@ export type DatosManuales = {
   vencimiento_manual?: string | null;
   frecuencia?: number | null; // pagos por año; la BVM no lo publica
   irpf_manual?: number | null; // tasa de IRPF propia del bono (si no, la de su tipo)
+  amortizaciones?: { fecha: string; pct: number }[] | null; // capital en cuotas (% del nominal original)
+  escalonado?: { desde: string; tasa: number }[] | null;    // cupón que cambia con el tiempo
 };
 
 export type Instrumento = InstrumentoBvm & DatosManuales & { updated_at?: string };
@@ -222,7 +224,7 @@ export function efectivo(i: Instrumento) {
       const dias = (Date.parse(vencimiento) - hoy) / 86_400_000;
       if (dias > 0) precio = 100 / Math.pow(1 + i.precio / 100, dias / 365);
     }
-    return { cupon: 0, vencimiento, frecuencia: 1, frecuenciaSupuesta: false, precio, tasaVector: i.precio, letra: true };
+    return { cupon: 0, vencimiento, frecuencia: 1, frecuenciaSupuesta: false, precio, tasaVector: i.precio, letra: true, amortizaciones: null, escalonado: null };
   }
   return {
     cupon: i.cupon_manual ?? i.cupon,
@@ -232,6 +234,8 @@ export function efectivo(i: Instrumento) {
     precio: i.precio,
     tasaVector: null as number | null,
     letra: false,
+    amortizaciones: i.amortizaciones ?? null,
+    escalonado: i.escalonado ?? null,
   };
 }
 

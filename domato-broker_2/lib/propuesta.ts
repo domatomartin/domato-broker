@@ -59,6 +59,8 @@ export type ItemPropuesta = {
   vencimiento: string | null;
   frecuencia: number;
   irpf_manual?: number | null;
+  amortizaciones?: { fecha: string; pct: number }[] | null;
+  escalonado?: { desde: string; tasa: number }[] | null;
   motivo?: string;
 };
 
@@ -117,6 +119,8 @@ export function itemDesdeInstrumento(i: Instrumento, peso: number, motivo?: stri
     vencimiento: e.vencimiento,
     frecuencia: e.frecuencia,
     irpf_manual: i.irpf_manual ?? null,
+    amortizaciones: e.amortizaciones,
+    escalonado: e.escalonado,
     motivo,
   };
 }
@@ -210,7 +214,7 @@ export function calcularCartera(items: ItemPropuesta[], montoTotal: number, cost
     const fx = fxs[item.moneda] ?? 1;
     const monto = (montoTotal * item.peso) / 100;
     const montoLocal = monto / fx;
-    const a = analizarBono({ cupon: item.cupon, frecuencia: item.frecuencia, vencimiento: item.vencimiento, precio: item.precio }, fecha);
+    const a = analizarBono({ cupon: item.cupon, frecuencia: item.frecuencia, vencimiento: item.vencimiento, precio: item.precio, amortizaciones: item.amortizaciones, escalonado: item.escalonado }, fecha);
     const vn = a.completo ? nominalNetoParaMonto(a, montoLocal, costos) : 0;
     const neto = a.completo ? aplicarCostos(a, vn, costos, irpfDe(costos, item)) : null;
     const grupo = grupoDe({ isin: item.isin, especie: item.especie } as Instrumento);
@@ -313,7 +317,7 @@ export function candidatosPara(perfil: PerfilCliente, instrumentos: Instrumento[
     .filter((i) => monedas.includes(i.moneda))
     .map((i) => {
       const e = efectivo(i);
-      const a = analizarBono({ cupon: e.cupon, frecuencia: e.frecuencia, vencimiento: e.vencimiento, precio: e.precio });
+      const a = analizarBono({ cupon: e.cupon, frecuencia: e.frecuencia, vencimiento: e.vencimiento, precio: e.precio, amortizaciones: e.amortizaciones, escalonado: e.escalonado });
       const neto = a.completo ? aplicarCostos(a, nominalNetoParaMonto(a, 10000, costos), costos, irpfDe(costos, i)) : null;
       return { i, a, neto };
     })

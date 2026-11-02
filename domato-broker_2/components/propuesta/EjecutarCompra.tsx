@@ -79,7 +79,7 @@ export default function EjecutarCompra({
       const ins = catalogo.get(x.isin);
       const e = ins ? efectivo(ins) : null;
       const precioActual = e?.precio ?? x.precio_compra;
-      const a = analizarBono({ cupon: item.cupon, frecuencia: item.frecuencia, vencimiento: item.vencimiento, precio: precioActual });
+      const a = analizarBono({ cupon: item.cupon, frecuencia: item.frecuencia, vencimiento: item.vencimiento, precio: precioActual, amortizaciones: item.amortizaciones, escalonado: item.escalonado });
       return {
         nombre: item.nombre,
         codigo: ins?.codigo ?? null,

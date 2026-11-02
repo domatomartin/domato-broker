@@ -43,14 +43,17 @@ export type Posicion = {
 
 const mesDe = (iso: string) => iso.slice(0, 7);
 
-function datosBono(b: Bond) {
-  return { cupon: b.cupon, frecuencia: b.frecuencia ?? 2, vencimiento: b.proximo_vencimiento };
+function datosBono(b: Bond, ins?: Instrumento | null) {
+  return {
+    cupon: b.cupon, frecuencia: b.frecuencia ?? 2, vencimiento: b.proximo_vencimiento,
+    amortizaciones: ins?.amortizaciones ?? null, escalonado: ins?.escalonado ?? null,
+  };
 }
 
 /** Todos los cobros de un bono desde su compra hasta el vencimiento. */
 export function cobrosDeBono(b: BondConPropuesta, costos: Costos, ins?: Instrumento | null): Cobro[] {
   const fechaCompra = (b.fecha_compra ?? b.created_at ?? hoyIso()).slice(0, 10);
-  const a = analizarBono({ ...datosBono(b), precio: b.precio_compra || 100 }, fechaCompra);
+  const a = analizarBono({ ...datosBono(b, ins), precio: b.precio_compra || 100 }, fechaCompra);
   if (!a.completo) return [];
   const vn = b.valor_nominal * (b.cantidad || 1);
   const irpfPct = irpfDe(costos, { isin: b.isin ?? "", especie: ins?.especie ?? null, irpf_manual: ins?.irpf_manual ?? null });
@@ -91,11 +94,11 @@ export function posiciones(
       const ins = b.isin ? instrumentos.get(b.isin) : null;
       const vn = b.valor_nominal * (b.cantidad || 1);
       const fechaCompra = (b.fecha_compra ?? b.created_at ?? corte).slice(0, 10);
-      const aC = analizarBono({ ...datosBono(b), precio: b.precio_compra || 100 }, fechaCompra);
+      const aC = analizarBono({ ...datosBono(b, ins), precio: b.precio_compra || 100 }, fechaCompra);
       const irpfPct = irpfDe(costos, { isin: b.isin ?? "", especie: ins?.especie ?? null, irpf_manual: ins?.irpf_manual ?? null });
       const netoC = aC.completo ? aplicarCostos(aC, vn, costos, irpfPct) : null;
       const invertido = netoC?.inversionTotal ?? (b.precio_compra / 100) * vn;
-      const aH = analizarBono({ ...datosBono(b), precio: b.precio_actual || b.precio_compra }, corte);
+      const aH = analizarBono({ ...datosBono(b, ins), precio: b.precio_actual || b.precio_compra }, corte);
       const interesCorrido = aH.completo ? (aH.interesCorrido * vn) / 100 : 0;
       const valorHoy = ((b.precio_actual || b.precio_compra) / 100) * vn + interesCorrido;
       const cobrado = cobrosDeBono(b, costos, ins).filter((c) => c.fecha <= corte).reduce((s, c) => s + c.total, 0);
