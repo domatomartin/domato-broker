@@ -201,6 +201,8 @@ export type DatosManuales = {
   amortizaciones?: { fecha: string; pct: number }[] | null; // capital en cuotas (% del nominal original)
   escalonado?: { desde: string; tasa: number }[] | null;    // cupón que cambia con el tiempo
   rendimiento_estimado?: number | null; // % anual estimado para renta variable (participaciones, acciones)
+  oculto?: boolean | null;  // fuera del catálogo (sin datos para valuar); se puede volver a mostrar
+  notas?: string | null;    // datos de valuación y fuentes (distribuciones, calificación, TIR esperada)
 };
 
 export type Instrumento = InstrumentoBvm & DatosManuales & { updated_at?: string };

@@ -314,7 +314,7 @@ export function candidatosPara(perfil: PerfilCliente, instrumentos: Instrumento[
   const porMoneda = perfil.multimoneda ? 18 : 60;
   const cuenta: Record<string, number> = {};
   return instrumentos
-    .filter((i) => monedas.includes(i.moneda))
+    .filter((i) => !i.oculto && monedas.includes(i.moneda))
     .map((i) => {
       const e = efectivo(i);
       const a = analizarBono({ cupon: e.cupon, frecuencia: e.frecuencia, vencimiento: e.vencimiento, precio: e.precio, amortizaciones: e.amortizaciones, escalonado: e.escalonado });

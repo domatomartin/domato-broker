@@ -7,6 +7,7 @@ import { Panel } from "@/components/Card";
 import BondAnalysis, { AVISO_SIMULACION, fmtFecha, fmtMonto, fmtNum } from "@/components/BondAnalysis";
 import CatalogoBvmSync from "@/components/CatalogoBvmSync";
 import InformeBono from "@/components/InformeBono";
+import DetalleInstrumento from "@/components/DetalleInstrumento";
 import CostosEditor from "@/components/CostosEditor";
 import { useCostos } from "@/lib/useCostos";
 import { aplicarCostos, irpfDe, nominalNetoParaMonto, type Costos } from "@/lib/costos";
@@ -91,6 +92,7 @@ function EditorDatos({ i, onSaved, onCancel }: { i: Instrumento; onSaved: () => 
   const [frec, setFrec] = useState(String(i.frecuencia ?? 2));
   const [irpf, setIrpf] = useState(i.irpf_manual != null ? String(i.irpf_manual) : "");
   const [rend, setRend] = useState(i.rendimiento_estimado != null ? String(i.rendimiento_estimado) : "");
+  const [oculto, setOculto] = useState(!!i.oculto);
   const esVariable = grupoDe(i) === "Acciones" || /Certificados de Participaci|C\.\s?P\./i.test(`${i.especie ?? ""} ${i.nombre}`);
   const [err, setErr] = useState<string | null>(null);
 
@@ -103,6 +105,7 @@ function EditorDatos({ i, onSaved, onCancel }: { i: Instrumento; onSaved: () => 
         frecuencia: Number(frec),
         irpf_manual: irpf.trim() === "" ? null : Number(irpf.replace(",", ".")),
         rendimiento_estimado: rend.trim() === "" ? null : Number(rend.replace(",", ".")),
+        oculto,
       })
       .eq("isin", i.isin);
     if (error) setErr(error.message);
@@ -134,6 +137,9 @@ function EditorDatos({ i, onSaved, onCancel }: { i: Instrumento; onSaved: () => 
           <input className={clsx(input, "w-24")} value={rend} onChange={(ev) => setRend(ev.target.value)} placeholder="ej 8" title="Para renta variable (parques eólicos, acciones): según las distribuciones o dividendos recientes" />
         </label>
       )}
+      <label className="flex items-center gap-1.5 self-center text-[11px] text-muted" title="Lo saca de la lista y de las propuestas con IA; se puede volver a mostrar">
+        <input type="checkbox" checked={oculto} onChange={() => setOculto((v) => !v)} /> Ocultar del catálogo
+      </label>
       <button type="button" onClick={guardar} className="rounded bg-gold px-3 py-1 text-xs font-medium text-ink-panel">Guardar</button>
       <button type="button" onClick={onCancel} className="text-xs text-muted underline">Cancelar</button>
       {err && <span className="text-xs text-loss">{err}</span>}
@@ -158,6 +164,8 @@ export default function OpcionesPage() {
   const [editando, setEditando] = useState<string | null>(null);
   const [monto, setMonto] = useState("10000");
   const [informe, setInforme] = useState(false);
+  const [detalle, setDetalle] = useState<Instrumento | null>(null);
+  const [verOcultos, setVerOcultos] = useState(false);
   const { costos, guardar: guardarCostos } = useCostos();
 
   async function cargar() {
@@ -169,7 +177,7 @@ export default function OpcionesPage() {
 
   const filas: Fila[] = useMemo(
     () =>
-      instrumentos.map((i) => {
+      instrumentos.filter((i) => verOcultos || !i.oculto).map((i) => {
         const e = efectivo(i);
         return {
           i,
@@ -178,8 +186,9 @@ export default function OpcionesPage() {
           frecuenciaSupuesta: e.frecuenciaSupuesta,
         };
       }),
-    [instrumentos]
+    [instrumentos, verOcultos]
   );
+  const nOcultos = instrumentos.filter((i) => i.oculto).length;
 
   const visibles = useMemo(() => {
     const t = q.trim().toLowerCase();
@@ -243,7 +252,7 @@ export default function OpcionesPage() {
         <div>
           <h1 className="font-display text-2xl sm:text-3xl text-paper">Opciones de inversión</h1>
           <p className="text-sm text-muted mt-1">
-            {instrumentos.length} instrumentos de la BVM · {conTir} con TIR calculada
+            {instrumentos.length - nOcultos} instrumentos de la BVM · {conTir} con TIR calculada
             {instrumentos[0]?.fecha_precio && ` · precios del ${fmtFecha(instrumentos[0].fecha_precio)}`}
           </p>
         </div>
@@ -317,6 +326,8 @@ export default function OpcionesPage() {
       {informe && seleccionadas.length > 0 && (
         <InformeBono bonos={seleccionadas.map((f) => ({ i: f.i, a: f.a }))} monto={montoNum} costos={costos} onClose={() => setInforme(false)} />
       )}
+
+      {detalle && <DetalleInstrumento i={detalle} costos={costos} onClose={() => setDetalle(null)} />}
 
       <section className="flex flex-col gap-3">
         {/* Barra de búsqueda + orden + filtros (fija arriba en el celular) */}
@@ -396,6 +407,15 @@ export default function OpcionesPage() {
                 </span>
                 <input type="checkbox" checked={soloConTir} onChange={() => setSoloConTir((v) => !v)} className="h-5 w-5 accent-[#171A21]" />
               </label>
+              {nOcultos > 0 && (
+                <label className="flex items-center justify-between gap-3 text-sm text-paper">
+                  <span>
+                    Mostrar ocultos ({nOcultos})
+                    <span className="block text-[11px] text-muted">Títulos que el vector lista sin descripción, vencimiento ni tasa.</span>
+                  </span>
+                  <input type="checkbox" checked={verOcultos} onChange={() => setVerOcultos((v) => !v)} className="h-5 w-5 accent-[#171A21]" />
+                </label>
+              )}
               <div className="flex justify-between">
                 <button type="button" onClick={limpiarFiltros} className="text-sm text-muted underline">Limpiar todo</button>
                 <button type="button" onClick={() => setFiltrosAbiertos(false)} className="rounded-lg bg-gold px-4 py-2 text-sm font-medium text-white">
@@ -434,6 +454,7 @@ export default function OpcionesPage() {
                     editando={editando === f.i.isin}
                     onEditar={() => setEditando(editando === f.i.isin ? null : f.i.isin)}
                     onGuardado={() => { setEditando(null); cargar(); }}
+                    onDetalle={() => setDetalle(f.i)}
                   />
                 );
               })}
@@ -471,6 +492,7 @@ export default function OpcionesPage() {
                         editando={editando === f.i.isin}
                         onEditar={() => setEditando(editando === f.i.isin ? null : f.i.isin)}
                         onGuardado={() => { setEditando(null); cargar(); }}
+                        onDetalle={() => setDetalle(f.i)}
                       />
                     );
                   })}
@@ -515,7 +537,7 @@ function BadgeMoneda({ m }: { m: string }) {
 }
 
 function TarjetaBono({
-  f, marcado, deshabilitado, onToggle, editando, onEditar, onGuardado,
+  f, marcado, deshabilitado, onToggle, editando, onEditar, onGuardado, onDetalle,
 }: {
   f: Fila;
   marcado: boolean;
@@ -524,6 +546,7 @@ function TarjetaBono({
   editando: boolean;
   onEditar: () => void;
   onGuardado: () => void;
+  onDetalle: () => void;
 }) {
   const e = efectivo(f.i);
   const c = COLOR_GRUPO[f.grupo];
@@ -548,7 +571,7 @@ function TarjetaBono({
             {!!e.amortizaciones?.length && <span className="rounded-md bg-[#0D9488]/10 px-1.5 py-0.5 text-[10px] font-medium text-[#0F766E]">Amortiza en cuotas</span>}
             {!!e.escalonado?.length && <span className="rounded-md bg-[#7C3AED]/10 px-1.5 py-0.5 text-[10px] font-medium text-[#6D28D9]">Cupón escalonado</span>}
           </div>
-          <p className="text-sm font-semibold leading-snug text-paper line-clamp-2">{f.i.nombre}</p>
+          <button type="button" onClick={onDetalle} className="text-left text-sm font-semibold leading-snug text-paper line-clamp-2 hover:underline">{f.i.nombre}</button>
           <p className="mt-0.5 text-[10px] text-muted truncate">{f.i.isin}{f.i.codigo && ` · ${f.i.codigo}`}</p>
         </div>
         <div className="shrink-0 text-right">
@@ -576,6 +599,7 @@ function TarjetaBono({
         >
           {marcado ? "✓ En comparación" : "+ Comparar"}
         </button>
+        <button type="button" onClick={onDetalle} className="rounded-full border border-ink-border px-3 py-1.5 text-xs font-medium text-paper">📈 Detalle</button>
         {accion && (
           <button type="button" onClick={onEditar} className={clsx("text-xs underline", accion === "Completar" ? "text-warn" : "text-muted")}>
             {accion}
@@ -598,7 +622,7 @@ function Dato({ label, valor, sub }: { label: string; valor: string; sub?: strin
 }
 
 function FilaTabla({
-  f, e, marcado, deshabilitado, onToggle, editando, onEditar, onGuardado,
+  f, e, marcado, deshabilitado, onToggle, editando, onEditar, onGuardado, onDetalle,
 }: {
   f: Fila;
   e: ReturnType<typeof efectivo>;
@@ -608,6 +632,7 @@ function FilaTabla({
   editando: boolean;
   onEditar: () => void;
   onGuardado: () => void;
+  onDetalle: () => void;
 }) {
   const manual = f.i.cupon_manual != null || f.i.vencimiento_manual != null || f.i.frecuencia != null;
   return (
@@ -617,7 +642,7 @@ function FilaTabla({
           <input type="checkbox" checked={marcado} disabled={deshabilitado} onChange={onToggle} aria-label={`Comparar ${f.i.nombre}`} />
         </td>
         <td className="px-2 py-1.5 max-w-[260px]">
-          <p className="text-paper truncate" title={f.i.nombre}>{f.i.nombre}</p>
+          <button type="button" onClick={onDetalle} className="block max-w-full truncate text-left text-paper hover:underline" title={`Ver detalle e histórico de ${f.i.nombre}`}>{f.i.nombre}</button>
           <p className="flex items-center gap-1.5 text-[10px] text-muted truncate">
             <span className={clsx("h-1.5 w-1.5 shrink-0 rounded-full", COLOR_GRUPO[f.grupo].punto)} />
             {f.i.isin}{f.i.codigo && ` · ${f.i.codigo}`} · {f.grupo}
@@ -631,6 +656,7 @@ function FilaTabla({
         <td className="px-2 py-1.5 text-right font-mono">{e.letra ? "—" : fmtNum(f.a.currentYield, 2, "%")}</td>
         <td className="px-2 py-1.5 text-right font-mono">{fmtNum(f.a.duration, 2)}</td>
         <td className="px-2 py-1.5 text-right whitespace-nowrap">
+          <button type="button" onClick={onDetalle} className="mr-2 text-[11px] text-paper underline">Detalle</button>
           <button type="button" onClick={onEditar} className="text-[11px] text-muted underline hover:text-paper">
             {e.letra ? (f.a.completo ? "" : "Completar") : f.a.completo ? (manual ? "Editar" : "Ajustar") : "Completar"}
           </button>
