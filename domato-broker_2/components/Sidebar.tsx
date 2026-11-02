@@ -19,6 +19,7 @@ import {
   Tag,
   Landmark,
   FileSignature,
+  Users,
 } from "lucide-react";
 
 export const groups: {
@@ -35,6 +36,7 @@ export const groups: {
   {
     label: "Cartera",
     items: [
+      { href: "/clientes", label: "Clientes", icon: Users },
       { href: "/cartera", label: "Cartera", icon: Wallet },
       { href: "/opciones", label: "Opciones de inversión", icon: Landmark },
       { href: "/propuestas", label: "Propuestas", icon: FileSignature },

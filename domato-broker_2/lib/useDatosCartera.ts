@@ -7,7 +7,13 @@ import type { Instrumento } from "@/lib/bvm";
 import type { TasasFx } from "@/lib/fx";
 import type { BondConPropuesta } from "@/lib/estadoCuenta";
 
-export type InfoPropuesta = { id: string; cliente: string | null; asesor: string | null; cuenta: string | null; fx_compra: Record<string, number> | null; perfil: { moneda?: string } | null };
+export type InfoPropuesta = {
+  id: string; cliente: string | null; asesor: string | null; cuenta: string | null;
+  fx_compra: Record<string, number> | null; perfil: { moneda?: string } | null;
+  estrategia_fecha?: string | null; revision_fecha?: string | null;
+  senales_estado?: import("@/lib/senales").EstadoSenales | null;
+  metricas?: { tirNeta?: number | null } | null;
+};
 
 /** Carga todo lo necesario para estados de cuenta, calendario y constancias. */
 export function useDatosCartera() {
@@ -22,7 +28,7 @@ export function useDatosCartera() {
     (async () => {
       const [{ data: b }, { data: p }, t] = await Promise.all([
         supabase.from("bonds").select("*").in("estado", ["activo", "vencido"]),
-        supabase.from("propuestas").select("id, cliente, asesor, cuenta, fx_compra, perfil").eq("estado", "ejecutada"),
+        supabase.from("propuestas").select("id, cliente, asesor, cuenta, fx_compra, perfil, estrategia_fecha, revision_fecha, senales_estado, metricas").eq("estado", "ejecutada"),
         fetch("/api/cotizaciones").then((r) => r.json()).catch(() => null),
       ]);
       const lista = (b as BondConPropuesta[]) ?? [];
