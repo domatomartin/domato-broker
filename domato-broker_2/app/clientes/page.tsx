@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import clsx from "clsx";
 import { Panel } from "@/components/Card";
@@ -9,6 +9,10 @@ import { hoyIso } from "@/lib/bondMath";
 import { carteraLabel } from "@/lib/carteras";
 import { useDatosCartera } from "@/lib/useDatosCartera";
 import { cobrosDeCartera, posiciones, resumen } from "@/lib/estadoCuenta";
+import Comparador, { type FilaCliente } from "@/components/clientes/Comparador";
+import Reinversion from "@/components/clientes/Reinversion";
+import DetalleInstrumento from "@/components/DetalleInstrumento";
+import type { Instrumento } from "@/lib/bvm";
 
 const COLOR_MONEDA: Record<string, string> = { USD: "#15803D", UYU: "#0EA5E9", UI: "#4F46E5", EUR: "#1E3A5F", BRL: "#D97706", UP: "#9333EA" };
 const COLOR_GRUPO: Record<string, string> = { "Uruguay soberano": "#2563EB", Corporativos: "#7C3AED", Fideicomisos: "#0D9488", Exterior: "#D97706", Acciones: "#DB2777", Otros: "#94A3B8" };
@@ -39,7 +43,7 @@ export default function ClientesPage() {
     const base = prop?.revision_fecha ?? prop?.estrategia_fecha ?? null;
     const proxRev = base ? (() => { const d = new Date(base); d.setMonth(d.getMonth() + 3); return d.toISOString().slice(0, 10); })() : null;
     const tir = (() => { let s = 0, w = 0; for (const p of pos) if (p.tirCompra != null) { const peso = p.invertido * p.fxCompra; s += p.tirCompra * peso; w += peso; } return w ? s / w : null; })();
-    return { c, pos, res, prop, proximo, activas, proxRev, tir };
+    return { c, bonds, pos, res, prop, proximo, activas, proxRev, tir };
   }).filter((f) => f.pos.length), [datos, hoy]);
 
   const totalUSD = filas.reduce((s, f) => s + f.res.valorUSD, 0);
@@ -54,6 +58,8 @@ export default function ClientesPage() {
   const porMoneda = conc((p) => p.bond.moneda);
   const porGrupo = conc((p) => p.grupo);
   const porEmisor = conc((p) => emisor(p.bond.nombre, p.bond.isin)).slice(0, 8);
+  const filasCliente: FilaCliente[] = filas.map((f) => ({ c: f.c, nombre: f.prop?.cliente || carteraLabel(f.c), bonds: f.bonds, pos: f.pos, res: f.res, tir: f.tir, riesgo: f.prop?.perfil?.riesgo ?? null }));
+  const [detalle, setDetalle] = useState<Instrumento | null>(null);
   const pendientes = filas.filter((f) => f.activas > 0 || (f.proxRev && f.proxRev <= hoy) || !f.prop?.estrategia_fecha);
 
   if (datos.cargando) return <div className="p-8 text-sm text-muted">Cargando…</div>;
@@ -141,6 +147,18 @@ export default function ClientesPage() {
           </div>
         )}
       </Panel>
+
+      {filasCliente.length > 1 && (
+        <Panel title="Comparar carteras">
+          <Comparador filas={filasCliente} instrumentos={datos.instrumentos} tasas={datos.tasas} costos={datos.costos} emisor={emisor} />
+        </Panel>
+      )}
+
+      <Panel title="Reinversión: capital que vuelve en los próximos 12 meses">
+        <Reinversion filas={filasCliente} instrumentos={datos.instrumentos} tasas={datos.tasas} costos={datos.costos} onDetalle={setDetalle} />
+      </Panel>
+
+      {detalle && <DetalleInstrumento i={detalle} costos={datos.costos} onClose={() => setDetalle(null)} />}
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Panel title="Por moneda"><Barras datos={porMoneda} color={(k) => COLOR_MONEDA[k] ?? "#94A3B8"} /></Panel>

@@ -9,7 +9,7 @@ import type { BondConPropuesta } from "@/lib/estadoCuenta";
 
 export type InfoPropuesta = {
   id: string; cliente: string | null; asesor: string | null; cuenta: string | null;
-  fx_compra: Record<string, number> | null; perfil: { moneda?: string } | null;
+  fx_compra: Record<string, number> | null; perfil: { moneda?: string; riesgo?: string; plazoMaxAnios?: number } | null;
   estrategia_fecha?: string | null; revision_fecha?: string | null;
   senales_estado?: import("@/lib/senales").EstadoSenales | null;
   metricas?: { tirNeta?: number | null } | null;
