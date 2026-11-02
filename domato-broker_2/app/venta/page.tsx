@@ -46,6 +46,7 @@ function Contenido() {
   const [cuenta, setCuenta] = useState(params.get("cuenta") ?? "");
   const [pcts, setPcts] = useState<Record<string, number>>({});
   const [objetivo, setObjetivo] = useState("");
+  const [monedaVenta, setMonedaVenta] = useState("");
   const cuentaSel = cuenta || datos.cuentas[0] || "";
 
   const lineas: Linea[] = useMemo(() => {
@@ -80,6 +81,7 @@ function Contenido() {
     const nuevo: Record<string, number> = {};
     for (const l of orden) {
       if (falta <= 0) break;
+      if (monedaVenta && l.moneda !== monedaVenta) continue;
       const total = usd(calcular(l, 100).neto, l.moneda);
       if (total <= 0) continue;
       const pct = Math.min(100, Math.ceil((falta / total) * 100));
@@ -118,10 +120,16 @@ function Contenido() {
           <label className="text-xs text-muted">Monto a juntar (USD eq.)
             <input value={objetivo} onChange={(e) => setObjetivo(e.target.value)} inputMode="decimal" placeholder="ej. 20000" className="block w-40 rounded border border-ink-border bg-ink px-3 py-2 text-sm text-paper" />
           </label>
+          <label className="text-xs text-muted">Vender títulos en
+            <select value={monedaVenta} onChange={(e) => setMonedaVenta(e.target.value)} className="block rounded border border-ink-border bg-ink px-3 py-2 text-sm text-paper">
+              <option value="">Cualquier moneda</option>
+              {[...new Set(lineas.map((l) => l.moneda))].map((m) => <option key={m} value={m}>{m}</option>)}
+            </select>
+          </label>
           <button type="button" onClick={sugerir} className="rounded bg-gold px-4 py-2 text-sm font-medium text-white">Sugerir qué vender</button>
           {elegidas.length > 0 && <button type="button" onClick={() => setPcts({})} className="text-sm text-muted underline">Limpiar</button>}
         </div>
-        <p className="text-[11px] text-muted">Sugiere vender primero lo que menos rinde de acá al vencimiento, para que la cartera que queda siga rindiendo lo más posible.</p>
+        <p className="text-[11px] text-muted">Sugiere vender primero lo que menos rinde de acá al vencimiento, para que la cartera que queda siga rindiendo lo más posible. Ojo: la TIR en UI y UP es real (sin inflación) y la de pesos incluye la devaluación esperada, así que entre monedas no se compara directo; si el cliente necesita una moneda en particular, elegila arriba.</p>
       </Panel>
 
       <Panel title="Títulos de la cartera">
