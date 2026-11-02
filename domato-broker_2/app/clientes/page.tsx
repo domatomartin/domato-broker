@@ -1,6 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
+import type { FichaCliente } from "@/lib/perfilInversor";
 import Link from "next/link";
 import clsx from "clsx";
 import { Panel } from "@/components/Card";
@@ -33,6 +36,16 @@ function emisor(nombre: string, isin: string | null): string {
 export default function ClientesPage() {
   const datos = useDatosCartera();
   const hoy = hoyIso();
+  const router = useRouter();
+  const [fichas, setFichas] = useState<FichaCliente[]>([]);
+  useEffect(() => { supabase.from("clientes").select("*").order("nombre").then(({ data }) => setFichas((data as FichaCliente[]) ?? [])); }, []);
+  const fichaDe = (c: string) => fichas.find((f) => (f.cuenta ?? "").trim() === c);
+  async function abrirFicha(c: string | null, nombre: string) {
+    const existente = c ? fichaDe(c) : undefined;
+    if (existente) { router.push(`/clientes/${existente.id}`); return; }
+    const { data, error } = await supabase.from("clientes").insert({ nombre, cuenta: c }).select("id").single();
+    if (!error && data) router.push(`/clientes/${(data as { id: string }).id}`);
+  }
 
   const filas = useMemo(() => datos.cuentas.map((c) => {
     const bonds = datos.bonds.filter((b) => (b.cuenta ?? "").trim() === c);
@@ -59,7 +72,8 @@ export default function ClientesPage() {
   const porMoneda = conc((p) => p.bond.moneda);
   const porGrupo = conc((p) => p.grupo);
   const porEmisor = conc((p) => emisor(p.bond.nombre, p.bond.isin)).slice(0, 8);
-  const filasCliente: FilaCliente[] = filas.map((f) => ({ c: f.c, nombre: f.prop?.cliente || carteraLabel(f.c), bonds: f.bonds, pos: f.pos, res: f.res, tir: f.tir, riesgo: f.prop?.perfil?.riesgo ?? null }));
+  const filasCliente: FilaCliente[] = filas.map((f) => ({ c: f.c, nombre: f.prop?.cliente || carteraLabel(f.c), bonds: f.bonds, pos: f.pos, res: f.res, tir: f.tir, riesgo: fichaDe(f.c)?.perfil?.riesgo ?? f.prop?.perfil?.riesgo ?? null }));
+  const prospectos = fichas.filter((f) => !f.cuenta || !filas.some((x) => x.c === (f.cuenta ?? "").trim()));
   const [detalle, setDetalle] = useState<Instrumento | null>(null);
   const pendientes = filas.filter((f) => f.activas > 0 || (f.proxRev && f.proxRev <= hoy) || !f.prop?.estrategia_fecha);
 
@@ -67,9 +81,12 @@ export default function ClientesPage() {
 
   return (
     <div className="p-4 sm:p-6 md:p-8 flex flex-col gap-6">
-      <div>
-        <h1 className="font-display text-2xl sm:text-3xl text-paper">Clientes</h1>
-        <p className="text-sm text-muted mt-1">Todo lo que administrás en una vista: total, concentración y qué cliente necesita atención.</p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="font-display text-2xl sm:text-3xl text-paper">Clientes</h1>
+          <p className="text-sm text-muted mt-1">Todo lo que administrás en una vista: total, concentración y qué cliente necesita atención.</p>
+        </div>
+        <button type="button" onClick={() => abrirFicha(null, "Cliente nuevo")} className="rounded bg-gold px-4 py-2 text-sm font-medium text-white">+ Nuevo cliente</button>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-4">
@@ -138,7 +155,8 @@ export default function ClientesPage() {
                       {f.proxRev && <span className="block text-muted">revisar {fmtFecha(f.proxRev)}</span>}
                     </td>
                     <td className="px-2 py-2.5 text-right text-xs whitespace-nowrap">
-                      <Link href={`/estado-cuenta?cuenta=${encodeURIComponent(f.c)}`} className="underline text-muted hover:text-paper">Estado de cuenta</Link>
+                      <button type="button" onClick={() => abrirFicha(f.c, f.prop?.cliente || carteraLabel(f.c))} className="underline text-muted hover:text-paper">{fichaDe(f.c) ? "Ficha" : "Crear ficha"}</button>
+                      {" · "}<Link href={`/estado-cuenta?cuenta=${encodeURIComponent(f.c)}`} className="underline text-muted hover:text-paper">Estado de cuenta</Link>
                       {f.prop && <> · <Link href={`/propuestas/${f.prop.id}`} className="underline text-muted hover:text-paper">Propuesta</Link></>}
                     </td>
                   </tr>
@@ -148,6 +166,19 @@ export default function ClientesPage() {
           </div>
         )}
       </Panel>
+
+      {prospectos.length > 0 && (
+        <Panel title="Prospectos y otras fichas">
+          <div className="flex flex-col gap-1.5">
+            {prospectos.map((f) => (
+              <Link key={f.id} href={`/clientes/${f.id}`} className="flex items-center justify-between rounded-lg bg-ink px-3 py-2 text-sm hover:bg-ink/70">
+                <span className="text-paper">{f.nombre}</span>
+                <span className="text-xs capitalize text-muted">{f.perfil ? `perfil ${f.perfil.riesgo}` : "sin test de perfil"}{f.monto_previsto ? ` · ${fmtMonto(f.monto_previsto, f.moneda ?? "USD")}` : ""}</span>
+              </Link>
+            ))}
+          </div>
+        </Panel>
+      )}
 
       {filasCliente.length > 1 && (
         <Panel title="Comparar carteras">
