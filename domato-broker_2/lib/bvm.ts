@@ -106,6 +106,12 @@ function fechaIso(dd: string, mm: string, yy: string): string | null {
 /** Moneda a partir de la especie; si la especie no la dice, se mira el ISIN. */
 // Correcciones verificadas en el prospecto: la BVM agrupa estas emisiones con otra moneda.
 const MONEDA_CORREGIDA: Record<string, string> = {
+  // Globales de Uruguay en UI que el vector lista sin especie (si no, quedaban como dólares)
+  US760942AU61: "UI", // 2027 4,25%
+  US917288BD36: "UI", // 2028 4,375%
+  US760942AV45: "UI", // 2037 3,70%
+  US917288BL51: "UI", // 2040 3,875%
+  US917288BP65: "UI", // 2045 3,40%
   EU000A4D7YR5: "BRL", // BEI 11% 03/07/2030, en reales
   // Multilaterales (BEI, BERD, BIRF, BAsD, IFC, AIIB) que cotizan en reales o pesos colombianos (ficha BVM)
   EU000A4EDR76: "BRL",
