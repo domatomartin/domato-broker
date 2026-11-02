@@ -5,7 +5,8 @@ import { computePortfolio } from "@/lib/calculations";
 import { Bond } from "@/lib/types";
 import { computeBondAlerts } from "@/lib/alerts";
 import { fotoMercado } from "@/lib/mercado";
-import { evaluarSenales, type Senal, type SenalEvaluada } from "@/lib/senales";
+import { evaluarSenales, type EstadoSenales, type Senal, type SenalEvaluada } from "@/lib/senales";
+import { enviarPush } from "@/lib/push";
 import { efectivo, type Instrumento } from "@/lib/bvm";
 
 export const maxDuration = 60;
@@ -44,9 +45,10 @@ export async function GET(request: Request) {
   // Señales de la estrategia de cada cliente: se evalúan con el mercado y los precios de hoy.
   const sinEmail = new URL(request.url).searchParams.get("sinEmail") === "1";
   const clientes: AlertaCliente[] = [];
+  const nuevas: AlertaCliente[] = []; // señales que se activaron hoy (no estaban activas en la evaluación anterior)
   const { data: props } = await supabaseAdmin
     .from("propuestas")
-    .select("id, cliente, cuenta, estado, senales")
+    .select("id, cliente, cuenta, estado, senales, senales_estado")
     .in("estado", ["ejecutada", "presentada"])
     .not("senales", "is", null);
   if (props?.length) {
@@ -61,8 +63,27 @@ export async function GET(request: Request) {
     for (const p of props) {
       const evaluadas = evaluarSenales((p.senales as Senal[]) ?? [], foto, precios);
       await supabaseAdmin.from("propuestas").update({ senales_estado: { fecha: ahora, evaluadas } }).eq("id", p.id);
-      for (const senal of evaluadas.filter((x) => x.activa)) clientes.push({ propuestaId: p.id, cliente: p.cliente ?? "", cuenta: p.cuenta, senal });
+      const antes = new Set(((p.senales_estado as EstadoSenales | null)?.evaluadas ?? []).filter((x) => x.activa).map((x) => `${x.indicador}|${x.condicion}|${x.umbral}`));
+      for (const senal of evaluadas.filter((x) => x.activa)) {
+        const a = { propuestaId: p.id, cliente: p.cliente ?? "", cuenta: p.cuenta, senal };
+        clientes.push(a);
+        if (!antes.has(`${senal.indicador}|${senal.condicion}|${senal.umbral}`)) nuevas.push(a);
+      }
     }
+  }
+
+  // Aviso al celular solo por las señales nuevas, para no repetir lo mismo todos los días.
+  let push: Awaited<ReturnType<typeof enviarPush>> | null = null;
+  if (nuevas.length) {
+    try {
+      const primera = nuevas[0];
+      push = await enviarPush({
+        titulo: nuevas.length === 1 ? `Señal activada · ${primera.cliente || primera.cuenta || "cliente"}` : `${nuevas.length} señales nuevas en estrategias de clientes`,
+        cuerpo: nuevas.length === 1 ? `${primera.senal.descripcion} (hoy ${primera.senal.valor}). ${primera.senal.accion}` : nuevas.slice(0, 3).map((x) => `${x.cliente || x.cuenta}: ${x.senal.descripcion}`).join(" · "),
+        url: nuevas.length === 1 ? `/propuestas/${primera.propuestaId}` : "/alertas",
+        tag: "senales",
+      }, supabaseAdmin);
+    } catch { /* el push no debe frenar las alertas */ }
   }
 
   const resendKey = process.env.RESEND_API_KEY;
@@ -91,5 +112,5 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json({ alerts, clientes, emailed: !sinEmail && Boolean(resendKey && emailTo) });
+  return NextResponse.json({ alerts, clientes, nuevas: nuevas.length, push, emailed: !sinEmail && Boolean(resendKey && emailTo) });
 }

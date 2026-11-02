@@ -8,6 +8,7 @@ import { computeBondAlerts, computeMarketAlerts, severityOrder, AlertItem } from
 import { Panel, Badge } from "@/components/Card";
 import Link from "next/link";
 import type { EstadoSenales } from "@/lib/senales";
+import ActivarPush from "@/components/ActivarPush";
 
 type PropSenales = { id: string; cliente: string | null; cuenta: string | null; senales_estado: EstadoSenales | null };
 
@@ -134,17 +135,11 @@ export default function AlertasPage() {
         )}
       </Panel>
 
-      <Panel title="Notificaciones por email o push">
-        <p className="text-xs text-muted">
-          Estas alertas ya se calculan en <code className="text-gold">/api/alerts</code>, listas para conectar a un
-          cron diario. Para que además lleguen por email, sumá una cuenta de{" "}
-          <a href="https://resend.com" target="_blank" rel="noopener noreferrer" className="text-gold underline">
-            Resend
-          </a>{" "}
-          (o el proveedor que prefieras) y las variables <code className="text-gold">RESEND_API_KEY</code> y{" "}
-          <code className="text-gold">ALERT_EMAIL_TO</code> en tu <code className="text-gold">.env.local</code> /
-          Vercel — el endpoint ya está preparado para tomarlas cuando existan. Notificaciones push requieren además
-          registrar un service worker en el navegador; avisame si querés que la sumemos.
+      <Panel title="Notificaciones">
+        <ActivarPush />
+        <p className="text-[11px] text-muted">
+          Todos los días a las 9 se revisan las señales de las estrategias de tus clientes; cuando una se activa por primera vez te llega un aviso a cada dispositivo donde las activaste.
+          Tocando el aviso se abre la propuesta del cliente. Los avisos por email se suman cuando cargues la clave de Resend en Vercel.
         </p>
       </Panel>
     </div>
