@@ -4,6 +4,7 @@ import { Suspense, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import clsx from "clsx";
 import { Panel } from "@/components/Card";
+import RentabilidadCartera from "@/components/RentabilidadCartera";
 import { Titulo } from "@/components/InformeBono";
 import DocumentoA4, { CampoDoc, EncabezadoDoc, KpiDoc } from "@/components/DocumentoA4";
 import { fmtFecha, fmtMonto, fmtNum } from "@/components/BondAnalysis";
@@ -85,6 +86,12 @@ function Contenido() {
           </div>
         )}
       </Panel>
+
+      {pos.length > 0 && (
+        <Panel title="Rentabilidad desde la compra">
+          <RentabilidadCartera bonds={bondsCuenta} pos={pos} instrumentos={datos.instrumentos} costos={datos.costos} />
+        </Panel>
+      )}
 
       {abierto && (
         <DocumentoA4
