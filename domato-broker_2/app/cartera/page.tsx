@@ -233,6 +233,12 @@ export default function CarteraPage() {
           >
             {showImport ? "Cerrar importador" : "Importar informe BCE&M"}
           </button>
+          <a
+            href={`/estado-cuenta${cuentaFiltro !== "todas" && cuentaFiltro !== SIN_CARTERA ? `?cuenta=${encodeURIComponent(cuentaFiltro)}` : ""}`}
+            className="rounded border border-ink-border px-4 py-2 text-sm text-paper hover:border-gold hover:text-gold transition-colors"
+          >
+            Estado de cuenta
+          </a>
           <button
             onClick={() => setShowForm((s) => !s)}
             className="rounded bg-gold px-4 py-2 text-sm font-medium text-ink hover:bg-gold-bright transition-colors"

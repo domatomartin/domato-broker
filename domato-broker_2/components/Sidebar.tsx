@@ -58,7 +58,10 @@ export const groups: {
   },
   {
     label: "Reportes",
-    items: [{ href: "/informes", label: "Informes", icon: FileBarChart }],
+    items: [
+      { href: "/estado-cuenta", label: "Estado de cuenta", icon: FileBarChart },
+      { href: "/informes", label: "Informes", icon: FileBarChart },
+    ],
   },
   {
     label: "Contexto",
