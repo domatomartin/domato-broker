@@ -7,6 +7,9 @@ import { computeBondAlerts } from "@/lib/alerts";
 import { fotoMercado } from "@/lib/mercado";
 import { evaluarSenales, type EstadoSenales, type Senal, type SenalEvaluada } from "@/lib/senales";
 import { enviarPush } from "@/lib/push";
+import { cumple, describir, valorActual, type Seguido } from "@/lib/seguimiento";
+import { cobrosDeCartera, type BondConPropuesta } from "@/lib/estadoCuenta";
+import { normalizarCostos, type Costos } from "@/lib/costos";
 import { efectivo, type Instrumento } from "@/lib/bvm";
 
 export const maxDuration = 60;
@@ -86,6 +89,61 @@ export async function GET(request: Request) {
     } catch { /* el push no debe frenar las alertas */ }
   }
 
+  // Lista de seguimiento: avisa cuando un título cruza la TIR o el precio marcado (una vez por cruce).
+  const seguidosDisparados: { isin: string; nombre: string; texto: string }[] = [];
+  try {
+    const { data: segs } = await supabaseAdmin.from("seguimiento").select("*");
+    if (segs?.length) {
+      const { data: insSeg } = await supabaseAdmin.from("instrumentos").select("*").in("isin", segs.map((x) => x.isin));
+      const mapa = new Map(((insSeg as Instrumento[]) ?? []).map((i) => [i.isin, i]));
+      for (const sg of segs as Seguido[]) {
+        const ins = mapa.get(sg.isin);
+        if (!ins) continue;
+        const v = valorActual(ins, sg.tipo);
+        const ahoraCumple = cumple(sg, v);
+        if (ahoraCumple && !sg.disparada) seguidosDisparados.push({ isin: sg.isin, nombre: ins.nombre, texto: `${describir(sg)} (hoy ${v != null ? v.toFixed(2) : "—"}${sg.tipo === "tir" ? "%" : ""})` });
+        await supabaseAdmin.from("seguimiento").update({ disparada: ahoraCumple, valor: v, ultima_revision: new Date().toISOString() }).eq("isin", sg.isin);
+      }
+      if (seguidosDisparados.length) {
+        const p0 = seguidosDisparados[0];
+        await enviarPush({
+          titulo: seguidosDisparados.length === 1 ? `Seguimiento · ${p0.nombre}` : `${seguidosDisparados.length} títulos de tu lista cruzaron el nivel marcado`,
+          cuerpo: seguidosDisparados.length === 1 ? p0.texto : seguidosDisparados.slice(0, 3).map((x) => `${x.nombre}: ${x.texto}`).join(" · "),
+          url: "/seguimiento",
+          tag: "seguimiento",
+        }, supabaseAdmin);
+      }
+    }
+  } catch { /* no frena las alertas */ }
+
+  // Recordatorio: cobros de mañana en todas las carteras (solo en la corrida diaria, no en "Revisar ahora").
+  let cobrosManiana = 0;
+  if (!sinEmail) {
+    try {
+      const d = new Date(Date.now() + 86_400_000 - 3 * 3_600_000); // mañana en hora de Uruguay
+      const maniana = d.toISOString().slice(0, 10);
+      const activos = (bonds as BondConPropuesta[]) ?? [];
+      const isinsB = [...new Set(activos.map((b) => b.isin).filter((x): x is string => !!x))];
+      const [{ data: insB }, { data: cfg }] = await Promise.all([
+        isinsB.length ? supabaseAdmin.from("instrumentos").select("*").in("isin", isinsB) : Promise.resolve({ data: [] }),
+        supabaseAdmin.from("costos_config").select("*").eq("id", 1).maybeSingle(),
+      ]);
+      const mapaB = new Map(((insB as Instrumento[]) ?? []).map((i) => [i.isin, i]));
+      const cobros = cobrosDeCartera(activos, normalizarCostos(cfg as Partial<Costos> | null), mapaB).filter((c) => c.fecha === maniana);
+      cobrosManiana = cobros.length;
+      if (cobros.length) {
+        const cuentaDe = (id: string) => activos.find((b) => b.id === id)?.cuenta ?? "";
+        const fmt = (v: number, m: string) => `${v.toLocaleString("es-UY", { maximumFractionDigits: 0 })} ${m}`;
+        await enviarPush({
+          titulo: cobros.length === 1 ? "Mañana hay un cobro" : `Mañana hay ${cobros.length} cobros`,
+          cuerpo: cobros.slice(0, 3).map((c) => `${cuentaDe(c.bondId) ? cuentaDe(c.bondId) + ": " : ""}${c.nombre} ${fmt(c.total, c.moneda)}${c.capital ? " (vence)" : ""}`).join(" · "),
+          url: "/cobros",
+          tag: "cobros",
+        }, supabaseAdmin);
+      }
+    } catch { /* no frena las alertas */ }
+  }
+
   const resendKey = process.env.RESEND_API_KEY;
   const emailTo = process.env.ALERT_EMAIL_TO;
 
@@ -112,5 +170,5 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json({ alerts, clientes, nuevas: nuevas.length, push, emailed: !sinEmail && Boolean(resendKey && emailTo) });
+  return NextResponse.json({ alerts, clientes, nuevas: nuevas.length, push, seguimiento: seguidosDisparados.length, cobrosManiana, emailed: !sinEmail && Boolean(resendKey && emailTo) });
 }

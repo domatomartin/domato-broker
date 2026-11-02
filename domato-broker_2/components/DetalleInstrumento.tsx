@@ -6,6 +6,7 @@ import { fmtFecha, fmtNum, fmtMonto } from "@/components/BondAnalysis";
 import { analizarBono, sensibilidad, tirDeFlujos, type AnalisisBono } from "@/lib/bondMath";
 import { aplicarCostos, irpfDe, nominalNetoParaMonto, type Costos } from "@/lib/costos";
 import { efectivo, grupoDe, type Instrumento } from "@/lib/bvm";
+import SeguirTitulo from "@/components/SeguirTitulo";
 
 type Punto = { fecha: string; precio: number };
 const PERIODOS = [
@@ -463,6 +464,10 @@ export default function DetalleInstrumento({ i, costos, onClose }: { i: Instrume
               )}
             </Seccion>
           )}
+
+          <Seccion titulo="Seguir este título">
+            <SeguirTitulo isin={i.isin} tirHoy={e.variable ? null : a.tir} precioHoy={precioHoy ?? null} variable={e.variable} />
+          </Seccion>
 
           {e.variable && (
             <Seccion titulo="¿Cuánto rinde comprando hoy?">

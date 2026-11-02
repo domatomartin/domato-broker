@@ -21,6 +21,7 @@ import {
   FileSignature,
   Users,
   ArrowRightLeft,
+  Star,
 } from "lucide-react";
 
 export const groups: {
@@ -40,6 +41,7 @@ export const groups: {
       { href: "/clientes", label: "Clientes", icon: Users },
       { href: "/cartera", label: "Cartera", icon: Wallet },
       { href: "/opciones", label: "Opciones de inversión", icon: Landmark },
+      { href: "/seguimiento", label: "Seguimiento", icon: Star },
       { href: "/propuestas", label: "Propuestas", icon: FileSignature },
       { href: "/historico", label: "Historico", icon: History },
       { href: "/riesgo", label: "Riesgo", icon: ShieldAlert },
