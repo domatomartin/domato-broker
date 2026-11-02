@@ -17,6 +17,7 @@ import Reinversion from "@/components/clientes/Reinversion";
 import PortalLinks from "@/components/clientes/PortalLinks";
 import DetalleInstrumento from "@/components/DetalleInstrumento";
 import type { Instrumento } from "@/lib/bvm";
+import { descargarExcel, r2 } from "@/lib/excel";
 
 const COLOR_MONEDA: Record<string, string> = { USD: "#15803D", UYU: "#0EA5E9", UI: "#4F46E5", EUR: "#1E3A5F", BRL: "#D97706", UP: "#9333EA" };
 const COLOR_GRUPO: Record<string, string> = { "Uruguay soberano": "#2563EB", Corporativos: "#7C3AED", Fideicomisos: "#0D9488", Exterior: "#D97706", Acciones: "#DB2777", Otros: "#94A3B8" };
@@ -73,6 +74,29 @@ export default function ClientesPage() {
   const porGrupo = conc((p) => p.grupo);
   const porEmisor = conc((p) => emisor(p.bond.nombre, p.bond.isin)).slice(0, 8);
   const filasCliente: FilaCliente[] = filas.map((f) => ({ c: f.c, nombre: f.prop?.cliente || carteraLabel(f.c), bonds: f.bonds, pos: f.pos, res: f.res, tir: f.tir, riesgo: fichaDe(f.c)?.perfil?.riesgo ?? f.prop?.perfil?.riesgo ?? null }));
+  async function exportar() {
+    const hoyX = hoyIso();
+    const posFilas = filas.flatMap((f) => f.pos.map((p) => ({
+      Cliente: f.prop?.cliente || carteraLabel(f.c), Título: p.bond.nombre, ISIN: p.bond.isin, Moneda: p.bond.moneda, Tipo: p.grupo,
+      Nominales: r2(p.vn, 0), "Precio compra": r2(p.bond.precio_compra), "Precio hoy": r2(p.bond.precio_actual),
+      Invertido: r2(p.invertido), "Valor hoy": r2(p.valorHoy), Cobrado: r2(p.cobrado), Resultado: r2(p.resultado),
+      "TIR compra %": r2(p.tirCompra), "Valor hoy USD": r2(p.valorHoy * p.fxHoy), Vencimiento: p.bond.proximo_vencimiento,
+    })));
+    const cobFilas = filas.flatMap((f) => cobrosDeCartera(f.bonds, datos.costos, datos.instrumentos).filter((c) => c.fecha > hoyX).slice(0, 400).map((c) => ({
+      Cliente: f.prop?.cliente || carteraLabel(f.c), Fecha: c.fecha, Título: c.nombre, Moneda: c.moneda,
+      "Interés bruto": r2(c.interesBruto), Comisión: r2(c.comision), IRPF: r2(c.irpf), Custodia: r2(c.custodia), Capital: r2(c.capital), "Total neto": r2(c.total),
+    }))).sort((a, b) => String(a.Fecha).localeCompare(String(b.Fecha)));
+    const resFilas = filas.map((f) => ({
+      Cliente: f.prop?.cliente || carteraLabel(f.c), Cartera: carteraLabel(f.c), Títulos: f.pos.length,
+      "Valor USD": r2(f.res.valorUSD), "Invertido USD": r2(f.res.invertidoUSD), "Resultado USD": r2(f.res.resultadoUSD),
+      "TIR compra %": r2(f.tir), Monedas: f.res.porMoneda.map((m) => `${m.moneda} ${m.pctCartera.toFixed(0)}%`).join(" · "),
+    }));
+    await descargarExcel(`Domato clientes ${hoyX}`, [
+      { nombre: "Resumen", filas: resFilas },
+      { nombre: "Posiciones", filas: posFilas },
+      { nombre: "Próximos cobros", filas: cobFilas },
+    ]);
+  }
   const prospectos = fichas.filter((f) => !f.cuenta || !filas.some((x) => x.c === (f.cuenta ?? "").trim()));
   const [detalle, setDetalle] = useState<Instrumento | null>(null);
   const pendientes = filas.filter((f) => f.activas > 0 || (f.proxRev && f.proxRev <= hoy) || !f.prop?.estrategia_fecha);
@@ -86,7 +110,10 @@ export default function ClientesPage() {
           <h1 className="font-display text-2xl sm:text-3xl text-paper">Clientes</h1>
           <p className="text-sm text-muted mt-1">Todo lo que administrás en una vista: total, concentración y qué cliente necesita atención.</p>
         </div>
-        <button type="button" onClick={() => abrirFicha(null, "Cliente nuevo")} className="rounded bg-gold px-4 py-2 text-sm font-medium text-white">+ Nuevo cliente</button>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={exportar} disabled={!filas.length} className="rounded border border-ink-border px-4 py-2 text-sm text-paper disabled:opacity-50">⬇ Excel</button>
+          <button type="button" onClick={() => abrirFicha(null, "Cliente nuevo")} className="rounded bg-gold px-4 py-2 text-sm font-medium text-white">+ Nuevo cliente</button>
+        </div>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-4">

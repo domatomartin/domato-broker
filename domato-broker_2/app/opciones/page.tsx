@@ -9,6 +9,7 @@ import CatalogoBvmSync from "@/components/CatalogoBvmSync";
 import InformeBono from "@/components/InformeBono";
 import DetalleInstrumento from "@/components/DetalleInstrumento";
 import CurvaTir from "@/components/CurvaTir";
+import { descargarExcel, r2 } from "@/lib/excel";
 import CostosEditor from "@/components/CostosEditor";
 import { useCostos } from "@/lib/useCostos";
 import { aplicarCostos, irpfDe, nominalNetoParaMonto, type Costos } from "@/lib/costos";
@@ -444,7 +445,19 @@ export default function OpcionesPage() {
         </div>
 
         <div className="flex items-center justify-between text-xs text-muted print:hidden">
-          <span>{visibles.length} resultados · {ORDENES.find((o) => o.id === ordenActual)?.label}</span>
+          <span>
+            {visibles.length} resultados · {ORDENES.find((o) => o.id === ordenActual)?.label}
+            {" · "}
+            <button type="button" className="underline" onClick={() => descargarExcel(`Opciones de inversión ${new Date().toISOString().slice(0, 10)}`, [{
+              nombre: "Catálogo",
+              filas: visibles.map((f) => { const e = efectivo(f.i); return {
+                Título: f.i.nombre, ISIN: f.i.isin, Código: f.i.codigo, Moneda: f.i.moneda, Tipo: f.grupo,
+                Precio: r2(e.variable ? e.precioMercado : e.precio), "Cupón %": r2(e.cupon, 3), Frecuencia: e.frecuencia, Vencimiento: e.vencimiento,
+                "TIR %": r2(f.a.tir), "Rend. corriente %": r2(f.a.currentYield), Duration: r2(f.a.duration), "Renta variable": e.variable ? "sí" : "",
+                "Amortiza en cuotas": e.amortizaciones?.length ? "sí" : "", "Fecha precio": f.i.fecha_precio,
+              }; }),
+            }])}>⬇ Excel</button>
+          </span>
           {filtrosActivos > 0 && <button type="button" onClick={limpiarFiltros} className="underline">Limpiar filtros</button>}
         </div>
 

@@ -11,6 +11,7 @@ import { carteraLabel } from "@/lib/carteras";
 import { aUSD } from "@/lib/fx";
 import { useDatosCartera } from "@/lib/useDatosCartera";
 import { cobrosDeCartera, type Cobro } from "@/lib/estadoCuenta";
+import { descargarExcel, r2 } from "@/lib/excel";
 
 type FilaTitulo = { nombre: string; isin: string | null; moneda: string; grupo: string; tasa: number; bruto: number; irpf: number; neto: number; cobros: number };
 
@@ -105,6 +106,10 @@ function Contenido() {
           <select value={anio} onChange={(e) => setAnio(Number(e.target.value))} className="rounded border border-ink-border bg-ink-panel px-3 py-2 text-sm text-paper">
             {[anioActual, anioActual - 1, anioActual - 2].map((a) => <option key={a} value={a}>{a}</option>)}
           </select>
+          <button type="button" disabled={!filas.length} onClick={() => descargarExcel(`IRPF ${anio} ${cliente}`, [
+            { nombre: "Por título", filas: filas.map((f) => ({ Título: f.nombre, ISIN: f.isin, Tipo: f.grupo, Moneda: f.moneda, Cobros: f.cobros, Intereses: r2(f.bruto), "Tasa IRPF %": f.tasa, "IRPF retenido": r2(f.irpf), "Neto de IRPF": r2(f.neto) })) },
+            { nombre: "Cada cobro", filas: cobros.map((c) => ({ Fecha: c.fecha, Título: c.nombre, ISIN: c.isin, Moneda: c.moneda, Intereses: r2(c.interesBruto), "Tasa IRPF %": c.irpfPct, "IRPF retenido": r2(c.irpf) })) },
+          ])} className="rounded border border-ink-border px-4 py-2 text-sm text-paper disabled:opacity-50">⬇ Excel</button>
           <button type="button" onClick={() => setAbierto(true)} disabled={!filas.length} className="rounded bg-gold px-4 py-2 text-sm font-medium text-white disabled:opacity-50">Ver constancia</button>
         </div>
       </div>
