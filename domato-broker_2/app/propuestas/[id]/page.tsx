@@ -10,6 +10,7 @@ import CostosEditor from "@/components/CostosEditor";
 import TextoIA from "@/components/TextoIA";
 import MezclaEditor from "@/components/propuesta/MezclaEditor";
 import ResumenCartera from "@/components/propuesta/ResumenCartera";
+import Escenarios from "@/components/propuesta/Escenarios";
 import InformePropuesta from "@/components/propuesta/InformePropuesta";
 import EjecutarCompra from "@/components/propuesta/EjecutarCompra";
 import Seguimiento from "@/components/propuesta/Seguimiento";
@@ -382,6 +383,10 @@ export default function PropuestaPage() {
 
       <Panel title="3 · Resultado esperado de la cartera">
         <ResumenCartera m={metricas} moneda={monedaRef} />
+      </Panel>
+
+      <Panel title="Escenarios: qué pasa si…">
+        <Escenarios m={metricas} moneda={perfil.moneda} />
       </Panel>
 
       <Panel
