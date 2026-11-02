@@ -41,6 +41,9 @@ export default function Topbar({ userEmail }: { userEmail?: string }) {
             <a href="/cuenta/clave" className="text-[11px] text-muted hover:text-paper transition-colors">
               Cambiar contraseña
             </a>
+            <a href="/seguridad" className="text-[11px] text-muted hover:text-paper transition-colors">
+              Seguridad
+            </a>
           </div>
         </div>
       </div>

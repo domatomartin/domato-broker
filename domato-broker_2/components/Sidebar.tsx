@@ -22,6 +22,7 @@ import {
   Users,
   ArrowRightLeft,
   Star,
+  Lock,
 } from "lucide-react";
 
 export const groups: {
@@ -80,7 +81,10 @@ export const groups: {
   },
   {
     label: "Cuenta",
-    items: [{ href: "/perfil", label: "Perfil", icon: UserCircle }],
+    items: [
+      { href: "/perfil", label: "Perfil", icon: UserCircle },
+      { href: "/seguridad", label: "Seguridad", icon: Lock },
+    ],
   },
 ];
 

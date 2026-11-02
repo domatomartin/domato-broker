@@ -21,6 +21,8 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   const [nueva, setNueva] = useState("");
   const [nueva2, setNueva2] = useState("");
   const pathname = usePathname();
+  const [pideCodigo, setPideCodigo] = useState(false);
+  const [codigo, setCodigo] = useState("");
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
@@ -31,6 +33,26 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     });
     return () => listener.subscription.unsubscribe();
   }, []);
+
+  // Verificación en dos pasos: si el usuario la activó, la sesión con solo contraseña (aal1) pide el código.
+  useEffect(() => {
+    if (!session || session === "loading") { setPideCodigo(false); return; }
+    supabase.auth.mfa.getAuthenticatorAssuranceLevel().then(({ data }) => {
+      setPideCodigo(!!data && data.nextLevel === "aal2" && data.currentLevel !== "aal2");
+    });
+  }, [session]);
+
+  async function verificarCodigo(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null); setSigningIn(true);
+    const { data: f } = await supabase.auth.mfa.listFactors();
+    const factor = f?.totp?.find((x) => x.status === "verified");
+    if (!factor) { setSigningIn(false); setPideCodigo(false); return; }
+    const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId: factor.id, code: codigo.trim() });
+    setSigningIn(false);
+    if (error) { setError("Código incorrecto o vencido. Probá con el que muestra ahora la app."); return; }
+    setCodigo(""); setPideCodigo(false);
+  }
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -64,6 +86,24 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
 
   // Portal del cliente: página pública de solo lectura (el link con token es la llave).
   if (pathname?.startsWith("/portal/")) return <>{children}</>;
+
+  if (session && session !== "loading" && pideCodigo) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-ink px-4">
+        <div className="card-shadow rounded-2xl bg-ink-panel px-8 py-9 w-full max-w-sm">
+          <h1 className="font-display text-xl text-paper mb-1">Verificación en dos pasos</h1>
+          <p className="text-sm text-muted mb-6">Escribí el código de 6 dígitos que muestra tu app de autenticación (Google Authenticator, Authy o la de tu iPhone).</p>
+          <form onSubmit={verificarCodigo} className="flex flex-col gap-3">
+            <input inputMode="numeric" autoComplete="one-time-code" maxLength={6} required placeholder="123456" value={codigo} onChange={(e) => setCodigo(e.target.value.replace(/\D/g, ""))} className="rounded border border-ink-border bg-ink px-3 py-2.5 text-center text-lg tracking-[0.4em] text-paper focus:outline-none focus:ring-2 focus:ring-gold" />
+            {error && <p className="text-xs text-loss">{error}</p>}
+            <button type="submit" disabled={signingIn || codigo.length !== 6} className="rounded bg-gold px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50">{signingIn ? "Verificando…" : "Entrar"}</button>
+            <button type="button" onClick={() => supabase.auth.signOut()} className="text-xs text-muted underline">Salir</button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
 
   const cambiando = recuperando || pathname === "/cuenta/clave";
   if (session && session !== "loading" && cambiando) {
