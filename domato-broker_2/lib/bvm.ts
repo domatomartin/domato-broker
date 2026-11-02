@@ -238,6 +238,8 @@ export function efectivo(i: Instrumento) {
 export type Grupo = "Uruguay soberano" | "Corporativos" | "Fideicomisos" | "Acciones" | "Exterior" | "Otros";
 
 export function grupoDe(i: Instrumento): Grupo {
+  // Globales de Uruguay: ISIN de EE.UU. pero deuda pública uruguaya (exonerada de IRPF).
+  if (/^US(760942|917288)/.test(i.isin ?? "")) return "Uruguay soberano";
   const e = i.especie ?? "";
   if (/Acciones/.test(e)) return "Acciones";
   if (/Obligaciones/.test(e)) return "Corporativos";
