@@ -77,7 +77,7 @@ export async function GET(request: Request) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          from: "Domato Broker <alertas@resend.dev>",
+          from: "Domato Broker <onboarding@resend.dev>",
           to: emailTo,
           subject: `${clientes.length ? `${clientes.length} señal(es) de clientes · ` : ""}${alerts.length} alerta(s) — Domato Broker`,
           html:
