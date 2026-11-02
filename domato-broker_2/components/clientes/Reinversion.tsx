@@ -35,8 +35,9 @@ export default function Reinversion({
     supabase.from("instrumentos").select("*").then(({ data }) => setCatalogo(((data as Instrumento[]) ?? []).filter((i) => !i.oculto)));
   }, []);
 
+  const [meses, setMeses] = useState(12);
   const hoy = hoyIso();
-  const enUnAnio = (() => { const d = new Date(); d.setFullYear(d.getFullYear() + 1); return d.toISOString().slice(0, 10); })();
+  const enUnAnio = (() => { const d = new Date(); d.setMonth(d.getMonth() + meses); return d.toISOString().slice(0, 10); })();
 
   // Capital que vuelve en los próximos 12 meses, por cliente y moneda.
   const eventos = useMemo(() => filas.map((f) => {
@@ -92,10 +93,25 @@ export default function Reinversion({
       .filter((x): x is Opcion => !!x);
   }
 
-  if (!eventos.length) return <p className="text-xs text-muted">Ningún cliente cobra capital (vencimientos o amortizaciones) en los próximos 12 meses.</p>;
+  const selector = (
+    <div className="flex items-center gap-1.5 text-xs text-muted">
+      Horizonte
+      {[12, 24, 36].map((m) => (
+        <button key={m} type="button" onClick={() => setMeses(m)} className={clsx("rounded-full px-2.5 py-0.5 font-medium", meses === m ? "bg-gold text-white" : "border border-ink-border")}>{m} meses</button>
+      ))}
+    </div>
+  );
+
+  if (!eventos.length) return (
+    <div className="flex flex-col gap-2">
+      {selector}
+      <p className="text-xs text-muted">Ningún cliente cobra capital (vencimientos o amortizaciones) en los próximos {meses} meses.</p>
+    </div>
+  );
 
   return (
     <div className="flex flex-col gap-4">
+      {selector}
       {eventos.map(({ f, porMoneda, durRef }) => {
         const yaTiene = new Set(f.bonds.map((b) => b.isin).filter((x): x is string => !!x));
         return (

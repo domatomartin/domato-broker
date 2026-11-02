@@ -154,7 +154,7 @@ export default function ClientesPage() {
         </Panel>
       )}
 
-      <Panel title="Reinversión: capital que vuelve en los próximos 12 meses">
+      <Panel title="Reinversión: capital que vuelve a los clientes">
         <Reinversion filas={filasCliente} instrumentos={datos.instrumentos} tasas={datos.tasas} costos={datos.costos} onDetalle={setDetalle} />
       </Panel>
 
