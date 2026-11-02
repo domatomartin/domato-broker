@@ -8,6 +8,7 @@ import BondAnalysis, { AVISO_SIMULACION, fmtFecha, fmtMonto, fmtNum } from "@/co
 import CatalogoBvmSync from "@/components/CatalogoBvmSync";
 import InformeBono from "@/components/InformeBono";
 import DetalleInstrumento from "@/components/DetalleInstrumento";
+import CurvaTir from "@/components/CurvaTir";
 import CostosEditor from "@/components/CostosEditor";
 import { useCostos } from "@/lib/useCostos";
 import { aplicarCostos, irpfDe, nominalNetoParaMonto, type Costos } from "@/lib/costos";
@@ -166,6 +167,7 @@ export default function OpcionesPage() {
   const [informe, setInforme] = useState(false);
   const [detalle, setDetalle] = useState<Instrumento | null>(null);
   const [verOcultos, setVerOcultos] = useState(false);
+  const [verCurva, setVerCurva] = useState(false);
   const { costos, guardar: guardarCostos } = useCostos();
 
   async function cargar() {
@@ -326,6 +328,21 @@ export default function OpcionesPage() {
       {informe && seleccionadas.length > 0 && (
         <InformeBono bonos={seleccionadas.map((f) => ({ i: f.i, a: f.a }))} monto={montoNum} costos={costos} onClose={() => setInforme(false)} />
       )}
+
+      <Panel
+        title="Curva de rendimientos"
+        action={
+          <button type="button" onClick={() => setVerCurva((v) => !v)} className="text-xs text-muted underline print:hidden">
+            {verCurva ? "Ocultar" : "Ver TIR contra plazo"}
+          </button>
+        }
+      >
+        {verCurva ? (
+          <CurvaTir filas={filas} onSelect={(i) => setDetalle(i)} />
+        ) : (
+          <p className="text-xs text-muted">Todos los títulos de una moneda en un gráfico de TIR contra plazo, con la curva soberana de referencia: se ve rápido cuáles rinden más de lo esperable para su plazo.</p>
+        )}
+      </Panel>
 
       {detalle && <DetalleInstrumento i={detalle} costos={costos} onClose={() => setDetalle(null)} />}
 
