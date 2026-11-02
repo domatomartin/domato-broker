@@ -582,7 +582,7 @@ function TarjetaBono({
 
       <div className="grid grid-cols-4 gap-2 border-t border-ink-border px-4 py-3 text-center">
         <Dato label="Precio" valor={fmtNum(e.variable ? e.precioMercado : e.precio, 2)} />
-        <Dato label="Cupón" valor={e.letra ? "—" : fmtNum(e.cupon, 2, "%")} />
+        <Dato label={e.variable ? "Rend. est." : "Cupón"} valor={e.letra ? "—" : fmtNum(e.cupon, 2, "%")} />
         <Dato label="Vence" valor={e.vencimiento ? e.vencimiento.slice(0, 4) : "—"} sub={plazo != null && plazo > 0 ? `${plazo < 1 ? Math.round(plazo * 12) + " m" : plazo.toFixed(1) + " a"}` : undefined} />
         <Dato label="Duration" valor={fmtNum(f.a.duration, 1)} />
       </div>

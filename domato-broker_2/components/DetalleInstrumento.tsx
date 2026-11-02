@@ -255,6 +255,12 @@ export default function DetalleInstrumento({ i, costos, onClose }: { i: Instrume
             <Kpi label="Volatilidad anual" valor={st ? fmtNum(st.volatilidad, 1, "%") : "—"} sub="del precio en el período" />
           </div>
 
+          {e.variable && precioHoy != null && precioHoy > 100 && (
+            <p className="rounded-lg bg-warn/10 px-3 py-2 text-xs text-warn">
+              El rendimiento estimado ({fmtNum(e.cupon, 1, "%")}) es para quien invirtió a la par (100). Hoy el vector lo valúa en {fmtNum(precioHoy, 2)}: comprando a ese precio el rendimiento esperado es menor.
+            </p>
+          )}
+
           {/* Gráfico */}
           <Seccion titulo="Histórico de precios (vector BCU)">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
@@ -285,7 +291,7 @@ export default function DetalleInstrumento({ i, costos, onClose }: { i: Instrume
             )}
             {pocoMovimiento && (
               <p className="mt-2 rounded-lg bg-warn/10 px-3 py-2 text-[11px] text-warn">
-                Poca liquidez: el precio cambió solo en el {fmtNum(st!.pctDiasConCambio, 0)}% de los días. El vector repite el último precio cuando no hay operaciones, así que el valor de mercado real puede ser distinto.
+                Poca liquidez: {st!.pctDiasConCambio < 1 ? "el precio casi no cambió en el período" : `el precio cambió solo en el ${fmtNum(st!.pctDiasConCambio, 0)}% de los días`}. El vector repite el último precio cuando no hay operaciones, así que el valor de mercado real puede ser distinto.
               </p>
             )}
             <p className="mt-2 text-[10px] text-muted">
@@ -348,7 +354,7 @@ export default function DetalleInstrumento({ i, costos, onClose }: { i: Instrume
           )}
 
           {a.completo && a.flujos.length > 0 && (
-            <Seccion titulo="Próximos pagos (cada 100 nominales)">
+            <Seccion titulo={e.variable ? "Distribuciones simuladas (cada 100 invertidos)" : "Próximos pagos (cada 100 nominales)"}>
               <table className="w-full text-xs tabular-nums">
                 <thead className="text-muted">
                   <tr className="border-b border-ink-border">
@@ -369,6 +375,11 @@ export default function DetalleInstrumento({ i, costos, onClose }: { i: Instrume
                   ))}
                 </tbody>
               </table>
+              {e.variable && (
+                <p className="mb-1 text-[10px] text-muted">
+                  Simulación: reparte el rendimiento estimado cada período y devuelve lo invertido al final. En la realidad las distribuciones varían con la producción e incluyen devolución de capital a lo largo de la vida del fideicomiso.
+                </p>
+              )}
               {a.flujos.length > 8 && <p className="mt-1 text-[10px] text-muted">y {a.flujos.length - 8} pagos más hasta {fmtFecha(e.vencimiento)}.</p>}
               {neto && (
                 <p className="mt-2 text-[11px] text-muted">
