@@ -90,6 +90,8 @@ function EditorDatos({ i, onSaved, onCancel }: { i: Instrumento; onSaved: () => 
   const [vto, setVto] = useState(e.vencimiento ?? "");
   const [frec, setFrec] = useState(String(i.frecuencia ?? 2));
   const [irpf, setIrpf] = useState(i.irpf_manual != null ? String(i.irpf_manual) : "");
+  const [rend, setRend] = useState(i.rendimiento_estimado != null ? String(i.rendimiento_estimado) : "");
+  const esVariable = grupoDe(i) === "Acciones" || /Certificados de Participaci|C\.\s?P\./i.test(`${i.especie ?? ""} ${i.nombre}`);
   const [err, setErr] = useState<string | null>(null);
 
   async function guardar() {
@@ -100,6 +102,7 @@ function EditorDatos({ i, onSaved, onCancel }: { i: Instrumento; onSaved: () => 
         vencimiento_manual: vto || null,
         frecuencia: Number(frec),
         irpf_manual: irpf.trim() === "" ? null : Number(irpf.replace(",", ".")),
+        rendimiento_estimado: rend.trim() === "" ? null : Number(rend.replace(",", ".")),
       })
       .eq("isin", i.isin);
     if (error) setErr(error.message);
@@ -126,6 +129,11 @@ function EditorDatos({ i, onSaved, onCancel }: { i: Instrumento; onSaved: () => 
       <label className="flex flex-col text-[10px] text-muted">IRPF propio %
         <input className={clsx(input, "w-20")} value={irpf} onChange={(ev) => setIrpf(ev.target.value)} placeholder="según tipo" />
       </label>
+      {esVariable && (
+        <label className="flex flex-col text-[10px] text-muted">Rend. estimado % anual
+          <input className={clsx(input, "w-24")} value={rend} onChange={(ev) => setRend(ev.target.value)} placeholder="ej 8" title="Para renta variable (parques eólicos, acciones): según las distribuciones o dividendos recientes" />
+        </label>
+      )}
       <button type="button" onClick={guardar} className="rounded bg-gold px-3 py-1 text-xs font-medium text-ink-panel">Guardar</button>
       <button type="button" onClick={onCancel} className="text-xs text-muted underline">Cancelar</button>
       {err && <span className="text-xs text-loss">{err}</span>}
@@ -536,6 +544,7 @@ function TarjetaBono({
             <BadgeMoneda m={f.i.moneda} />
             <span className={clsx("rounded-md px-1.5 py-0.5 text-[10px] font-medium", c.etiqueta)}>{f.grupo}</span>
             {e.letra && <span className="rounded-md bg-ink px-1.5 py-0.5 text-[10px] text-muted">Letra</span>}
+            {e.variable && <span className="rounded-md bg-[#DB2777]/10 px-1.5 py-0.5 text-[10px] font-medium text-[#BE185D]">Rendimiento estimado · variable</span>}
             {!!e.amortizaciones?.length && <span className="rounded-md bg-[#0D9488]/10 px-1.5 py-0.5 text-[10px] font-medium text-[#0F766E]">Amortiza en cuotas</span>}
             {!!e.escalonado?.length && <span className="rounded-md bg-[#7C3AED]/10 px-1.5 py-0.5 text-[10px] font-medium text-[#6D28D9]">Cupón escalonado</span>}
           </div>
@@ -549,7 +558,7 @@ function TarjetaBono({
       </div>
 
       <div className="grid grid-cols-4 gap-2 border-t border-ink-border px-4 py-3 text-center">
-        <Dato label="Precio" valor={fmtNum(e.precio, 2)} />
+        <Dato label="Precio" valor={fmtNum(e.variable ? e.precioMercado : e.precio, 2)} />
         <Dato label="Cupón" valor={e.letra ? "—" : fmtNum(e.cupon, 2, "%")} />
         <Dato label="Vence" valor={e.vencimiento ? e.vencimiento.slice(0, 4) : "—"} sub={plazo != null && plazo > 0 ? `${plazo < 1 ? Math.round(plazo * 12) + " m" : plazo.toFixed(1) + " a"}` : undefined} />
         <Dato label="Duration" valor={fmtNum(f.a.duration, 1)} />
@@ -615,7 +624,7 @@ function FilaTabla({
           </p>
         </td>
         <td className="px-2 py-1.5"><BadgeMoneda m={f.i.moneda} /></td>
-        <td className="px-2 py-1.5 text-right font-mono" title={e.letra ? `Letra a descuento: el vector publica tasa ${fmtNum(e.tasaVector, 2, "%")}` : undefined}>{fmtNum(e.precio, 2)}</td>
+        <td className="px-2 py-1.5 text-right font-mono" title={e.letra ? `Letra a descuento: el vector publica tasa ${fmtNum(e.tasaVector, 2, "%")}` : undefined}>{fmtNum(e.variable ? e.precioMercado : e.precio, 2)}</td>
         <td className="px-2 py-1.5 text-right font-mono">{e.letra ? "Letra" : fmtNum(e.cupon, 3, "%")}</td>
         <td className="px-2 py-1.5 whitespace-nowrap">{fmtFecha(e.vencimiento)}</td>
         <td className={clsx("px-2 py-1.5 text-right font-mono font-semibold", colorTir(f.a.tir))}>{fmtNum(f.a.tir, 2, "%")}</td>

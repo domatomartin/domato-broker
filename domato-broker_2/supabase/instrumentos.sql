@@ -386,3 +386,6 @@ insert into instrumentos (isin,codigo,nombre,especie,moneda,cupon,vencimiento,pr
 ('XS1405781854','QAT46A','QATAR 02/06/46','Bonos Soberanos Extranjeros US$','USD',null,'2046-06-02',81.51,1.87569,'2026-10-28'),
 ('USP75744AB11','PAR44A','República de Paraguay 11/08/44','Bonos Soberanos Extranjeros US$','USD',null,'2044-08-11',94.57,1.30472,'2026-10-28')
 on conflict (isin) do update set codigo=excluded.codigo,nombre=excluded.nombre,especie=excluded.especie,moneda=excluded.moneda,cupon=excluded.cupon,vencimiento=excluded.vencimiento,precio=excluded.precio,cupon_corrido=excluded.cupon_corrido,fecha_precio=excluded.fecha_precio,updated_at=now();
+
+-- Rendimiento anual estimado para títulos de renta variable (certificados de participación, acciones).
+alter table instrumentos add column if not exists rendimiento_estimado numeric;

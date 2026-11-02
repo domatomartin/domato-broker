@@ -200,6 +200,7 @@ export type DatosManuales = {
   irpf_manual?: number | null; // tasa de IRPF propia del bono (si no, la de su tipo)
   amortizaciones?: { fecha: string; pct: number }[] | null; // capital en cuotas (% del nominal original)
   escalonado?: { desde: string; tasa: number }[] | null;    // cupón que cambia con el tiempo
+  rendimiento_estimado?: number | null; // % anual estimado para renta variable (participaciones, acciones)
 };
 
 export type Instrumento = InstrumentoBvm & DatosManuales & { updated_at?: string };
@@ -224,7 +225,14 @@ export function efectivo(i: Instrumento) {
       const dias = (Date.parse(vencimiento) - hoy) / 86_400_000;
       if (dias > 0) precio = 100 / Math.pow(1 + i.precio / 100, dias / 365);
     }
-    return { cupon: 0, vencimiento, frecuencia: 1, frecuenciaSupuesta: false, precio, tasaVector: i.precio, letra: true, amortizaciones: null, escalonado: null };
+    return { cupon: 0, vencimiento, frecuencia: 1, frecuenciaSupuesta: false, precio, tasaVector: i.precio, letra: true, amortizaciones: null, escalonado: null, variable: false, precioMercado: i.precio };
+  }
+  // Renta variable con rendimiento estimado: se simula como si pagara ese % por año sobre lo invertido
+  // (precio base 100) hasta su vencimiento o, si no tiene, 10 años. Es una estimación, no un cupón.
+  if (i.rendimiento_estimado != null && (i.cupon_manual ?? i.cupon) == null) {
+    const h = new Date();
+    const vto = vencimiento ?? `${h.getFullYear() + 10}-${String(h.getMonth() + 1).padStart(2, "0")}-${String(Math.min(h.getDate(), 28)).padStart(2, "0")}`;
+    return { cupon: Number(i.rendimiento_estimado), vencimiento: vto, frecuencia: 1, frecuenciaSupuesta: false, precio: 100 as number | null, tasaVector: null as number | null, letra: false, amortizaciones: null, escalonado: null, variable: true, precioMercado: i.precio };
   }
   return {
     cupon: i.cupon_manual ?? i.cupon,
@@ -236,6 +244,8 @@ export function efectivo(i: Instrumento) {
     letra: false,
     amortizaciones: i.amortizaciones ?? null,
     escalonado: i.escalonado ?? null,
+    variable: false,
+    precioMercado: i.precio,
   };
 }
 

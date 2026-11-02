@@ -322,7 +322,7 @@ export function candidatosPara(perfil: PerfilCliente, instrumentos: Instrumento[
       return { i, a, neto };
     })
     .filter((c) => c.a.completo && c.neto?.tirNeta != null && (c.a.aniosAlVencimiento ?? 99) <= perfil.plazoMaxAnios + 0.5)
-    .filter((c) => grupoDe(c.i) !== "Acciones")
+    .filter((c) => grupoDe(c.i) !== "Acciones" || efectivo(c.i).variable)
     .sort((x, y) => (y.neto!.tirNeta ?? 0) - (x.neto!.tirNeta ?? 0))
     .filter((c) => (cuenta[c.i.moneda] = (cuenta[c.i.moneda] ?? 0) + 1) <= porMoneda)
     .slice(0, 80)
@@ -341,6 +341,7 @@ export function candidatosPara(perfil: PerfilCliente, instrumentos: Instrumento[
       irpf_pct: irpfDe(costos, c.i),
       duration: Number((c.a.duration ?? 0).toFixed(2)),
       letra: efectivo(c.i).letra,
+      renta_variable: efectivo(c.i).variable, // true: la "TIR" es un rendimiento estimado, no un cupón fijo
     }));
 }
 
