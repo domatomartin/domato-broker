@@ -20,6 +20,7 @@ import {
   Landmark,
   FileSignature,
   Users,
+  ArrowRightLeft,
 } from "lucide-react";
 
 export const groups: {
@@ -48,6 +49,7 @@ export const groups: {
     label: "Herramientas",
     items: [
       { href: "/simulador", label: "Simulador", icon: FlaskConical },
+      { href: "/venta", label: "Simular venta", icon: ArrowRightLeft },
       { href: "/calendario", label: "Calendario", icon: CalendarDays },
       { href: "/precios", label: "Precios", icon: Tag },
     ],

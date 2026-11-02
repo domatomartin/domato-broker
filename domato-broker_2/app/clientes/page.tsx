@@ -156,7 +156,7 @@ export default function ClientesPage() {
                     </td>
                     <td className="px-2 py-2.5 text-right text-xs whitespace-nowrap">
                       <button type="button" onClick={() => abrirFicha(f.c, f.prop?.cliente || carteraLabel(f.c))} className="underline text-muted hover:text-paper">{fichaDe(f.c) ? "Ficha" : "Crear ficha"}</button>
-                      {" · "}<Link href={`/estado-cuenta?cuenta=${encodeURIComponent(f.c)}`} className="underline text-muted hover:text-paper">Estado de cuenta</Link>
+                      {" · "}<Link href={`/estado-cuenta?cuenta=${encodeURIComponent(f.c)}`} className="underline text-muted hover:text-paper">Estado de cuenta</Link>{" · "}<Link href={`/venta?cuenta=${encodeURIComponent(f.c)}`} className="underline text-muted hover:text-paper">Simular venta</Link>
                       {f.prop && <> · <Link href={`/propuestas/${f.prop.id}`} className="underline text-muted hover:text-paper">Propuesta</Link></>}
                     </td>
                   </tr>
