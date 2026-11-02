@@ -229,6 +229,13 @@ export default function PropuestaPage() {
     };
   }
 
+  /** Guarda solo la estrategia/revisión (sirve también para propuestas ya ejecutadas, sin tocar lo propuesto). */
+  async function guardarEstrategia(campos: Partial<Propuesta>) {
+    const { data, error } = await supabase.from("propuestas").update({ ...campos, updated_at: new Date().toISOString() }).eq("id", id).select("*").single();
+    if (error) { setMsg({ tipo: "error", texto: `No se pudo guardar: ${error.message}` }); return; }
+    setProp(data as Propuesta);
+  }
+
   async function estrategiaIA(modo: "estrategia" | "revisar") {
     setMsg(null);
     setIaCargando(modo);
@@ -244,14 +251,16 @@ export default function PropuestaPage() {
       const j = await r.json();
       if (!r.ok) throw new Error(j.error ?? `Error ${r.status}`);
       const ahora = new Date().toISOString();
+      const campos = modo === "estrategia"
+        ? { estrategia: j.estrategia, estrategia_mercado: j.mercado ?? null, estrategia_fecha: ahora, senales: j.senales ?? [] }
+        : { revision: j.revision, revision_fecha: ahora };
       if (modo === "estrategia") {
         setEstrategia(j.estrategia); setEstrategiaMercado(j.mercado ?? null); setEstrategiaFecha(ahora); setSenales(j.senales ?? []);
-        setMsg({ tipo: "ok", texto: "Estrategia a 6 y 12 meses lista y guardada, con la foto del mercado de hoy." });
       } else {
         setRevision(j.revision); setRevisionFecha(ahora);
-        setMsg({ tipo: "ok", texto: "Revisión contra el mercado de hoy lista y guardada." });
       }
-      setSucio(true);
+      await guardarEstrategia(campos);
+      setMsg({ tipo: "ok", texto: modo === "estrategia" ? "Estrategia a 6 y 12 meses lista y guardada, con la foto del mercado de hoy." : "Revisión contra el mercado de hoy lista y guardada." });
     } catch (e) {
       setMsg({ tipo: "error", texto: `No se pudo consultar la IA: ${e instanceof Error ? e.message : String(e)}` });
     } finally {
@@ -430,7 +439,7 @@ export default function PropuestaPage() {
             Después podés tocar “Revisar con el mercado de hoy” para ver si alguna señal se activó.
           </p>
         ) : editandoEstrategia ? (
-          <textarea className={clsx(input, "min-h-[260px] font-mono text-xs")} value={estrategia} onChange={(e) => { setEstrategia(e.target.value); setSucio(true); }} />
+          <textarea className={clsx(input, "min-h-[260px] font-mono text-xs")} value={estrategia} onChange={(e) => { setEstrategia(e.target.value); if (!ejecutada) setSucio(true); }} onBlur={() => { if (ejecutada) guardarEstrategia({ estrategia }); }} />
         ) : (
           <>
             <p className="text-[11px] text-muted">
