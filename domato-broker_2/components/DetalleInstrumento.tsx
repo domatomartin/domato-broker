@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 import { fmtFecha, fmtNum, fmtMonto } from "@/components/BondAnalysis";
-import { analizarBono, sensibilidad, type AnalisisBono } from "@/lib/bondMath";
+import { analizarBono, sensibilidad, tirDeFlujos, type AnalisisBono } from "@/lib/bondMath";
 import { aplicarCostos, irpfDe, nominalNetoParaMonto, type Costos } from "@/lib/costos";
 import { efectivo, grupoDe, type Instrumento } from "@/lib/bvm";
 
@@ -47,7 +47,7 @@ function estadisticas(p: Punto[]) {
   };
 }
 
-function Grafico({ puntos }: { puntos: Punto[] }) {
+function Grafico({ puntos, modo = "precio" }: { puntos: Punto[]; modo?: "precio" | "tir" }) {
   const ref = useRef<SVGSVGElement>(null);
   const [hover, setHover] = useState<number | null>(null);
   const W = 720, H = 240, PL = 44, PR = 12, PT = 12, PB = 26;
@@ -64,7 +64,7 @@ function Grafico({ puntos }: { puntos: Punto[] }) {
   const ticksY = Array.from({ length: 4 }, (_, k) => lo + ((hi - lo) * (k + 0.5)) / 4);
   const nX = 5;
   const ticksX = Array.from({ length: nX }, (_, k) => puntos[Math.round((k * (puntos.length - 1)) / (nX - 1))].fecha);
-  const par = lo < 100 && hi > 100;
+  const par = modo === "precio" && lo < 100 && hi > 100;
 
   function mover(ev: React.PointerEvent<SVGSVGElement>) {
     const r = ref.current?.getBoundingClientRect();
@@ -79,7 +79,7 @@ function Grafico({ puntos }: { puntos: Punto[] }) {
     setHover(best);
   }
   const h = hover != null ? puntos[hover] : null;
-  const varH = h ? (h.precio / puntos[0].precio - 1) * 100 : 0;
+  const varH = h ? (modo === "tir" ? h.precio - puntos[0].precio : (h.precio / puntos[0].precio - 1) * 100) : 0;
 
   return (
     <div className="relative">
@@ -93,7 +93,7 @@ function Grafico({ puntos }: { puntos: Punto[] }) {
         {ticksY.map((v) => (
           <g key={v}>
             <line x1={PL} x2={W - PR} y1={y(v)} y2={y(v)} stroke="#E5E7EB" strokeWidth="1" />
-            <text x={PL - 6} y={y(v) + 3.5} textAnchor="end" fontSize="10" fill="#6E7684">{fmtNum(v, hi - lo < 4 ? 2 : 1)}</text>
+            <text x={PL - 6} y={y(v) + 3.5} textAnchor="end" fontSize="10" fill="#6E7684">{fmtNum(v, hi - lo < 4 ? 2 : 1)}{modo === "tir" ? "%" : ""}</text>
           </g>
         ))}
         {par && (
@@ -122,10 +122,52 @@ function Grafico({ puntos }: { puntos: Punto[] }) {
           style={{ left: `${Math.min(78, Math.max(2, (x(h.fecha) / W) * 100 - 10))}%` }}
         >
           <p className="text-muted">{fmtFecha(h.fecha)}</p>
-          <p className="font-semibold tabular-nums text-paper">{fmtNum(h.precio, 2)}</p>
-          <p className={clsx("tabular-nums", varH >= 0 ? "text-gain" : "text-loss")}>{varH >= 0 ? "+" : ""}{fmtNum(varH, 2, "%")} en el período</p>
+          <p className="font-semibold tabular-nums text-paper">{modo === "tir" ? `TIR ${fmtNum(h.precio, 2, "%")}` : fmtNum(h.precio, 2)}</p>
+          <p className={clsx("tabular-nums", modo === "tir" ? "text-muted" : varH >= 0 ? "text-gain" : "text-loss")}>
+            {varH >= 0 ? "+" : ""}{modo === "tir" ? `${fmtNum(varH, 2)} pts` : fmtNum(varH, 2, "%")} en el período
+          </p>
         </div>
       )}
+    </div>
+  );
+}
+
+/** Renta variable: ¿cuánto rinde comprando hoy, si distribuye X por año hasta el final? */
+function RendimientoHoy({ i, precioMercado, vencimiento }: { i: Instrumento; precioMercado: number | null; vencimiento: string | null }) {
+  const conDato = i.distribucion_estimada != null;
+  const [dist, setDist] = useState(String(i.distribucion_estimada ?? i.rendimiento_estimado ?? ""));
+  const [precio, setPrecio] = useState(precioMercado != null ? String(precioMercado) : "100");
+  const aniosDef = vencimiento ? Math.max(0.5, (Date.parse(vencimiento) - Date.now()) / (365.25 * 86_400_000)) : 10;
+  const [anios, setAnios] = useState(aniosDef.toFixed(1));
+  const [final, setFinal] = useState(conDato ? "0" : "100");
+  const n = (v: string) => Number(v.replace(",", "."));
+  const D = n(dist), P = n(precio), A = n(anios), F = n(final);
+  let tir: number | null = null;
+  if (D >= 0 && P > 0 && A > 0 && isFinite(D + P + A + F)) {
+    const flujos: { anios: number; total: number }[] = [];
+    const pagos = Math.max(1, Math.round(A));
+    for (let k = 1; k <= pagos; k++) flujos.push({ anios: (k * A) / pagos, total: D + (k === pagos ? F : 0) });
+    tir = tirDeFlujos(P, flujos);
+  }
+  const input = "w-20 rounded border border-ink-border bg-ink px-2 py-1 text-sm text-paper tabular-nums";
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-end gap-3 text-xs text-muted">
+        <label className="flex flex-col gap-1">Distribución anual (cada 100)<input className={input} value={dist} onChange={(e) => setDist(e.target.value)} inputMode="decimal" /></label>
+        <label className="flex flex-col gap-1">Precio de compra<input className={input} value={precio} onChange={(e) => setPrecio(e.target.value)} inputMode="decimal" /></label>
+        <label className="flex flex-col gap-1">Años que quedan<input className={input} value={anios} onChange={(e) => setAnios(e.target.value)} inputMode="decimal" /></label>
+        <label className="flex flex-col gap-1">Valor al final (cada 100)<input className={input} value={final} onChange={(e) => setFinal(e.target.value)} inputMode="decimal" /></label>
+        <div className="rounded-xl bg-gain/10 px-4 py-2">
+          <p className="text-[10px] uppercase tracking-wide text-muted">Rendimiento comprando hoy</p>
+          <p className="text-xl font-semibold tabular-nums text-gain">{tir == null ? "—" : fmtNum(tir, 2, "%")}</p>
+        </div>
+      </div>
+      <p className="text-[11px] text-muted">
+        {conDato
+          ? `Distribución anual cargada: ${fmtNum(i.distribucion_estimada, 2)} cada 100 nominales (promedio de los últimos años); al final no queda capital, porque las distribuciones ya lo van devolviendo.`
+          : "Por defecto supone que sigue distribuyendo el rendimiento estimado sobre 100 y que al final se recupera 100. Cambiá los valores con lo que esperes del título."}
+        {" "}Las distribuciones reales varían con la producción, los precios y la gestión del fideicomiso.
+      </p>
     </div>
   );
 }
@@ -163,6 +205,7 @@ export default function DetalleInstrumento({ i, costos, onClose }: { i: Instrume
   const [error, setError] = useState<string | null>(null);
   const [periodo, setPeriodo] = useState<(typeof PERIODOS)[number]["id"]>("1a");
   const [tirObjetivo, setTirObjetivo] = useState("");
+  const [vista, setVista] = useState<"precio" | "tir">("precio");
 
   useEffect(() => {
     let vivo = true;
@@ -200,6 +243,24 @@ export default function DetalleInstrumento({ i, costos, onClose }: { i: Instrume
     return todos.filter((p) => p.fecha >= desde);
   }, [todos, meses]);
   const st = estadisticas(visibles);
+
+  // TIR de cada día con el precio de ese día (muestreo semanal para que sea rápido).
+  const puedeTir = !e.variable && !e.letra && e.cupon != null && !!e.vencimiento;
+  const serieTir = useMemo(() => {
+    if (vista !== "tir" || !puedeTir || !visibles.length) return [];
+    const paso = Math.max(1, Math.floor(visibles.length / 160));
+    const out: Punto[] = [];
+    for (let k = 0; k < visibles.length; k += paso) {
+      const p = visibles[k];
+      const r = analizarBono({ cupon: e.cupon, frecuencia: e.frecuencia, vencimiento: e.vencimiento, precio: p.precio, amortizaciones: e.amortizaciones, escalonado: e.escalonado }, p.fecha);
+      if (r.tir != null && isFinite(r.tir)) out.push({ fecha: p.fecha, precio: r.tir });
+    }
+    const ult = visibles[visibles.length - 1];
+    if (out.length && out[out.length - 1].fecha !== ult.fecha && a.tir != null) out.push({ fecha: ult.fecha, precio: a.tir });
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vista, visibles, i]);
+  const tirInicio = serieTir[0]?.precio;
   const precioHoy = e.variable ? e.precioMercado : e.letra ? e.precio : i.precio;
 
   // Precio al que rendiría la TIR objetivo (usa la sensibilidad: mismo flujo, otra tasa).
@@ -262,7 +323,7 @@ export default function DetalleInstrumento({ i, costos, onClose }: { i: Instrume
           )}
 
           {/* Gráfico */}
-          <Seccion titulo="Histórico de precios (vector BCU)">
+          <Seccion titulo={vista === "tir" ? "Histórico de la TIR (con el precio de cada día)" : "Histórico de precios (vector BCU)"}>
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <div className="flex gap-1">
                 {PERIODOS.map((p) => (
@@ -276,7 +337,21 @@ export default function DetalleInstrumento({ i, costos, onClose }: { i: Instrume
                   </button>
                 ))}
               </div>
-              {st && (
+              {puedeTir && (
+                <div className="flex rounded-full border border-ink-border p-0.5 text-xs">
+                  {(["precio", "tir"] as const).map((v) => (
+                    <button key={v} type="button" onClick={() => setVista(v)} className={clsx("rounded-full px-2.5 py-0.5 font-medium", vista === v ? "bg-ink text-paper" : "text-muted")}>
+                      {v === "precio" ? "Precio" : "TIR"}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {st && vista === "tir" && tirInicio != null && a.tir != null && (
+                <p className="text-[11px] text-muted">
+                  TIR {fmtNum(tirInicio, 2, "%")} → {fmtNum(a.tir, 2, "%")} ({a.tir - tirInicio >= 0 ? "+" : ""}{fmtNum(a.tir - tirInicio, 2)} pts)
+                </p>
+              )}
+              {st && vista === "precio" && (
                 <p className="text-[11px] text-muted">
                   Máx {fmtNum(st.max.precio, 2)} ({fmtFecha(st.max.fecha)}) · Mín {fmtNum(st.min.precio, 2)} ({fmtFecha(st.min.fecha)})
                 </p>
@@ -287,7 +362,7 @@ export default function DetalleInstrumento({ i, costos, onClose }: { i: Instrume
             ) : !datos ? (
               <div className="h-[200px] animate-pulse rounded-xl bg-ink" />
             ) : (
-              <Grafico puntos={visibles} />
+              <Grafico puntos={vista === "tir" && serieTir.length > 1 ? serieTir : visibles} modo={vista === "tir" && serieTir.length > 1 ? "tir" : "precio"} />
             )}
             {pocoMovimiento && (
               <p className="mt-2 rounded-lg bg-warn/10 px-3 py-2 text-[11px] text-warn">
@@ -386,6 +461,12 @@ export default function DetalleInstrumento({ i, costos, onClose }: { i: Instrume
                   Con {fmtMonto(10000, i.moneda)} invertidos hoy (incluye comisión de compra) cobrarías en total {fmtMonto(neto.totalACobrarNeto, i.moneda)} netos de costos{irpf ? " e IRPF" : ""}.
                 </p>
               )}
+            </Seccion>
+          )}
+
+          {e.variable && (
+            <Seccion titulo="¿Cuánto rinde comprando hoy?">
+              <RendimientoHoy i={i} precioMercado={precioHoy ?? null} vencimiento={e.vencimiento} />
             </Seccion>
           )}
 
