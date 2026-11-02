@@ -6,6 +6,10 @@ import { Bond } from "@/lib/types";
 import { computePortfolio } from "@/lib/calculations";
 import { computeBondAlerts, computeMarketAlerts, severityOrder, AlertItem } from "@/lib/alerts";
 import { Panel, Badge } from "@/components/Card";
+import Link from "next/link";
+import type { EstadoSenales } from "@/lib/senales";
+
+type PropSenales = { id: string; cliente: string | null; cuenta: string | null; senales_estado: EstadoSenales | null };
 
 const TIPO_LABEL: Record<AlertItem["tipo"], string> = {
   cupon: "Cupón",
@@ -24,6 +28,20 @@ export default function AlertasPage() {
   const [bonds, setBonds] = useState<Bond[]>([]);
   const [ticker, setTicker] = useState<{ label: string; value: string; change: number }[]>([]);
   const [loading, setLoading] = useState(true);
+  const [props, setProps] = useState<PropSenales[]>([]);
+  const [revisando, setRevisando] = useState(false);
+
+  async function cargarSenales() {
+    const { data } = await supabase.from("propuestas").select("id, cliente, cuenta, senales_estado").not("senales", "is", null).in("estado", ["ejecutada", "presentada"]);
+    setProps((data as PropSenales[]) ?? []);
+  }
+  async function revisarAhora() {
+    setRevisando(true);
+    const { data } = await supabase.auth.getSession();
+    await fetch("/api/alerts?sinEmail=1", { headers: { Authorization: `Bearer ${data.session?.access_token ?? ""}` } }).catch(() => null);
+    await cargarSenales();
+    setRevisando(false);
+  }
 
   useEffect(() => {
     async function load() {
@@ -32,6 +50,7 @@ export default function AlertasPage() {
       setLoading(false);
     }
     load();
+    cargarSenales();
 
     fetch("/api/indices")
       .then((r) => r.json())
@@ -77,6 +96,40 @@ export default function AlertasPage() {
                 <p className="text-sm text-paper text-right flex-1">{a.mensaje}</p>
               </div>
             ))}
+          </div>
+        )}
+      </Panel>
+
+      <Panel
+        title="Señales de las estrategias de clientes"
+        action={
+          <button type="button" onClick={revisarAhora} disabled={revisando} className="rounded border border-ink-border px-3 py-1.5 text-xs text-paper hover:border-gold disabled:opacity-50">
+            {revisando ? "Revisando…" : "↻ Revisar ahora"}
+          </button>
+        }
+      >
+        {!props.length ? (
+          <p className="text-sm text-muted">Ningún cliente tiene estrategia con señales todavía. Se arman en cada propuesta, en “Estrategia de seguimiento”.</p>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {props.map((p) => {
+              const ev = p.senales_estado?.evaluadas ?? [];
+              const activas = ev.filter((x) => x.activa);
+              return (
+                <div key={p.id} className={`rounded-xl border px-4 py-3 ${activas.length ? "border-loss/40 bg-loss/5" : "border-ink-border"}`}>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <Link href={`/propuestas/${p.id}`} className="font-medium text-paper hover:underline">{p.cliente || p.cuenta || "Cliente"}</Link>
+                    <span className="text-xs text-muted">
+                      {activas.length ? `${activas.length} activa${activas.length !== 1 ? "s" : ""}` : "sin señales activas"} de {ev.length}
+                      {p.senales_estado?.fecha ? ` · revisado ${new Date(p.senales_estado.fecha).toLocaleDateString("es-UY")}` : " · aún sin revisar"}
+                    </span>
+                  </div>
+                  {activas.map((x, i) => (
+                    <p key={i} className="mt-1 text-sm text-paper">⚠ {x.descripcion} <span className="text-muted">(hoy {x.valor?.toLocaleString("es-UY", { maximumFractionDigits: 3 })})</span> → {x.accion}</p>
+                  ))}
+                </div>
+              );
+            })}
           </div>
         )}
       </Panel>

@@ -3,6 +3,7 @@ import { usuarioDesdeRequest } from "@/lib/authServer";
 import { NextRequest, NextResponse } from "next/server";
 import type { Candidato, PerfilCliente } from "@/lib/propuesta";
 import { fotoMercado, mercadoTexto, type FotoMercado } from "@/lib/mercado";
+import { INDICADORES, normalizarSenales } from "@/lib/senales";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -174,10 +175,20 @@ export async function POST(req: NextRequest) {
         "## Plan a 12 meses: lo mismo a un año, incluyendo reinversión de cupones y vencimientos.",
         "## Señales de alerta y qué hacer: 4-7 viñetas con formato **Si <condición medible con un umbral concreto>** → acción concreta (por ejemplo vender parte de un bono a través del corredor, acortar plazo, reforzar una moneda, reinvertir en tal tipo de instrumento). Usá umbrales numéricos sobre los datos de mercado de arriba o sobre el precio de los bonos.",
         "## Próximas revisiones: fechas sugeridas (a 3, 6 y 12 meses) y qué mirar en cada una.",
-        "Viñetas con - y negritas con **. Sé concreto: máximo 550 palabras en total, 3-4 viñetas por sección. Devolvé solo el texto. No es una predicción: es un plan de seguimiento.",
+        "Viñetas con - y negritas con **. Sé concreto: máximo 550 palabras en total, 3-4 viñetas por sección. No es una predicción: es un plan de seguimiento.",
+        "",
+        "Después del texto, agregá las mismas señales de alerta en formato de datos para vigilarlas automáticamente todos los días:",
+        "<senales>",
+        '[{"indicador":"TNX","condicion":">","umbral":5.5,"descripcion":"Treasury 10 años supera 5,5%","accion":"Vender parte del Global 2036 y pasar a plazos cortos"}]',
+        "</senales>",
+        `Indicadores válidos: ${Object.entries(INDICADORES).map(([k, v]) => `${k} = ${v}`).join("; ")}; o PRECIO:<ISIN> para el precio de un bono de la cartera (cada 100 de nominal). Los umbrales en las mismas unidades que los datos de mercado de arriba.`,
       ].join("\n");
       const { texto, model } = await preguntar(prompt, 5000);
-      return NextResponse.json({ estrategia: texto.trim(), mercado, model });
+      const bloque = texto.match(/<senales>([\s\S]*?)(<\/senales>|$)/i);
+      let senales: ReturnType<typeof normalizarSenales> = [];
+      try { senales = normalizarSenales(JSON.parse(bloque?.[1]?.trim() ?? "[]")); } catch { senales = []; }
+      const estrategia = texto.replace(/<senales>[\s\S]*?(<\/senales>|$)/i, "").trim();
+      return NextResponse.json({ estrategia, senales, mercado, model });
     }
 
     if (body.modo === "revisar") {

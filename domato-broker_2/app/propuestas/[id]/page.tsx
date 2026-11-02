@@ -15,6 +15,7 @@ import EjecutarCompra from "@/components/propuesta/EjecutarCompra";
 import Seguimiento from "@/components/propuesta/Seguimiento";
 import { leer, guardar as guardarLocal } from "@/components/InformeBono";
 import type { FotoMercado } from "@/lib/mercado";
+import { evaluarSenales, INDICADORES, type Senal, type SenalEvaluada } from "@/lib/senales";
 import { efectivo } from "@/lib/bvm";
 import { useCostos } from "@/lib/useCostos";
 import type { Instrumento } from "@/lib/bvm";
@@ -44,6 +45,7 @@ export default function PropuestaPage() {
   const [revision, setRevision] = useState("");
   const [revisionFecha, setRevisionFecha] = useState<string | null>(null);
   const [editandoEstrategia, setEditandoEstrategia] = useState(false);
+  const [senales, setSenales] = useState<Senal[]>([]);
   const [editandoTexto, setEditandoTexto] = useState(false);
 
   const [cargando, setCargando] = useState(true);
@@ -79,6 +81,7 @@ export default function PropuestaPage() {
         setEstrategiaFecha(pr.estrategia_fecha ?? null);
         setRevision(pr.revision ?? "");
         setRevisionFecha(pr.revision_fecha ?? null);
+        setSenales(pr.senales ?? []);
       }
       setCatalogo((inst as Instrumento[]) ?? []);
       setCargando(false);
@@ -111,6 +114,7 @@ export default function PropuestaPage() {
       estrategia_fecha: estrategiaFecha,
       revision: revision || null,
       revision_fecha: revisionFecha,
+      senales,
       metricas: metricas.lineas.length ? metricasParaGuardar(metricas, perfil.monto) : null,
       updated_at: new Date().toISOString(),
       ...extra,
@@ -241,7 +245,7 @@ export default function PropuestaPage() {
       if (!r.ok) throw new Error(j.error ?? `Error ${r.status}`);
       const ahora = new Date().toISOString();
       if (modo === "estrategia") {
-        setEstrategia(j.estrategia); setEstrategiaMercado(j.mercado ?? null); setEstrategiaFecha(ahora);
+        setEstrategia(j.estrategia); setEstrategiaMercado(j.mercado ?? null); setEstrategiaFecha(ahora); setSenales(j.senales ?? []);
         setMsg({ tipo: "ok", texto: "Estrategia a 6 y 12 meses lista y guardada, con la foto del mercado de hoy." });
       } else {
         setRevision(j.revision); setRevisionFecha(ahora);
@@ -436,6 +440,13 @@ export default function PropuestaPage() {
             <TextoIA texto={estrategia} />
           </>
         )}
+        {senales.length > 0 && (
+          <TablaSenales
+            senales={senales}
+            evaluadas={prop?.senales_estado?.evaluadas ?? evaluarSenales(senales, estrategiaMercado, Object.fromEntries([...mapa.values()].map((i) => [i.isin, efectivo(i).precio ?? null])))}
+            fecha={prop?.senales_estado?.fecha ?? estrategiaFecha}
+          />
+        )}
         {revision && (
           <div className="mt-2 rounded-xl border border-[#2563EB]/30 bg-[#2563EB]/5 p-4">
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#1D4ED8]">
@@ -543,6 +554,32 @@ function SelectorMonedas({
           </p>
         </div>
       )}
+    </div>
+  );
+}
+
+/** Señales que el sistema revisa solo todos los días (cron de alertas). */
+function TablaSenales({ senales, evaluadas, fecha }: { senales: Senal[]; evaluadas: SenalEvaluada[]; fecha: string | null }) {
+  return (
+    <div className="mt-2 rounded-xl border border-ink-border p-4">
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
+        Señales vigiladas automáticamente · {senales.length} · última revisión {fecha ? new Date(fecha).toLocaleDateString("es-UY") : "—"}
+      </p>
+      <div className="flex flex-col gap-2">
+        {evaluadas.map((s, i) => (
+          <div key={i} className={clsx("flex flex-wrap items-start justify-between gap-2 rounded-lg px-3 py-2 text-xs", s.activa ? "bg-loss/10" : "bg-ink")}>
+            <div className="min-w-0">
+              <p className="font-medium text-paper">{s.activa ? "⚠ " : ""}{s.descripcion || `${INDICADORES[s.indicador] ?? s.indicador} ${s.condicion} ${s.umbral}`}</p>
+              <p className="text-muted">→ {s.accion}</p>
+            </div>
+            <div className="text-right tabular-nums">
+              <p className={clsx("font-semibold", s.activa ? "text-loss" : "text-paper")}>{s.valor != null ? s.valor.toLocaleString("es-UY", { maximumFractionDigits: 3 }) : "—"}</p>
+              <p className="text-[10px] text-muted">umbral {s.condicion} {s.umbral.toLocaleString("es-UY")}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+      <p className="mt-2 text-[11px] text-muted">Se revisan todos los días a las 9 h junto con las alertas; las activas aparecen en Alertas{" "}y, si está configurado el correo, te llegan por mail.</p>
     </div>
   );
 }

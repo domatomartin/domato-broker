@@ -91,6 +91,8 @@ export type Propuesta = {
   revision_fecha?: string | null;
   /** Tipos de cambio fijados al comprar: valor de 1 unidad de cada moneda en la moneda del cliente. */
   fx_compra?: Record<string, number> | null;
+  senales?: import("@/lib/senales").Senal[] | null;
+  senales_estado?: import("@/lib/senales").EstadoSenales | null;
   created_at: string;
   updated_at: string;
 };
