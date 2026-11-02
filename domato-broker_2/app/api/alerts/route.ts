@@ -7,6 +7,7 @@ import { computeBondAlerts } from "@/lib/alerts";
 import { fotoMercado } from "@/lib/mercado";
 import { evaluarSenales, type EstadoSenales, type Senal, type SenalEvaluada } from "@/lib/senales";
 import { enviarPush } from "@/lib/push";
+import { correrNovedades } from "@/lib/novedades";
 import { cumple, describir, valorActual, type Seguido } from "@/lib/seguimiento";
 import { cobrosDeCartera, type BondConPropuesta } from "@/lib/estadoCuenta";
 import { normalizarCostos, type Costos } from "@/lib/costos";
@@ -32,6 +33,11 @@ export async function GET(request: Request) {
     process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
     process.env.SUPABASE_SERVICE_ROLE_KEY ?? ""
   );
+
+  // Primero, novedades del día: precios del vector, títulos nuevos y comunicados (solo en la corrida diaria).
+  const sinEmailFlag = new URL(request.url).searchParams.get("sinEmail") === "1";
+  let novedades: Awaited<ReturnType<typeof correrNovedades>> | null = null;
+  if (!sinEmailFlag) { try { novedades = await correrNovedades(supabaseAdmin); } catch { /* sigue */ } }
 
   const { data: bonds, error } = await supabaseAdmin
     .from("bonds")
@@ -170,5 +176,5 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json({ alerts, clientes, nuevas: nuevas.length, push, seguimiento: seguidosDisparados.length, cobrosManiana, emailed: !sinEmail && Boolean(resendKey && emailTo) });
+  return NextResponse.json({ novedades, alerts, clientes, nuevas: nuevas.length, push, seguimiento: seguidosDisparados.length, cobrosManiana, emailed: !sinEmail && Boolean(resendKey && emailTo) });
 }
