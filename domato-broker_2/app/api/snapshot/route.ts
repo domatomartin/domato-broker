@@ -5,6 +5,9 @@ import { createClient } from "@supabase/supabase-js";
 import { autorizadoCronOUsuario } from "@/lib/authServer";
 import { computePortfolio, portfolioTotals } from "@/lib/calculations";
 import { Bond } from "@/lib/types";
+import { posiciones, type BondConPropuesta } from "@/lib/estadoCuenta";
+import { normalizarCostos, type Costos } from "@/lib/costos";
+import type { Instrumento } from "@/lib/bvm";
 
 // Called once a day by Vercel Cron (see vercel.json) to freeze the day's
 // portfolio value into patrimonio_snapshots, powering the Histórico page.
@@ -68,11 +71,15 @@ export async function GET(request: Request) {
   const totals = portfolioTotals(computed);
   const tasas = await fetchTasas();
 
-  // Convertir cada moneda a USD y sumar
-  const valorTotalUsd = Object.entries(totals).reduce(
-    (sum, [moneda, t]) => sum + toUSD(t.valorTotal, moneda, tasas),
-    0
-  );
+  // Mismo valor que Clientes y Estado de cuenta: precio + cupón corrido de cada título.
+  const isins = [...new Set(((bonds as Bond[]) ?? []).map((b) => b.isin).filter((x): x is string => !!x))];
+  const [{ data: ins }, { data: cfg }] = await Promise.all([
+    isins.length ? supabaseAdmin.from("instrumentos").select("*").in("isin", isins) : Promise.resolve({ data: [] }),
+    supabaseAdmin.from("costos_config").select("*").eq("id", 1).maybeSingle(),
+  ]);
+  const pos = posiciones((bonds as BondConPropuesta[]) ?? [], normalizarCostos(cfg as Partial<Costos> | null), new Map(((ins as Instrumento[]) ?? []).map((i) => [i.isin, i])), tasas, {});
+  let valorTotalUsd = pos.reduce((sum, p) => sum + p.valorHoy * p.fxHoy, 0);
+  if (!pos.length) valorTotalUsd = Object.entries(totals).reduce((sum, [moneda, t]) => sum + toUSD(t.valorTotal, moneda, tasas), 0);
 
   const { error: upsertError } = await supabaseAdmin
     .from("patrimonio_snapshots")

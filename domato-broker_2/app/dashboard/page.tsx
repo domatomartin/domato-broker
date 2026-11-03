@@ -2,7 +2,9 @@
 
 import { aUSD, type TasasFx } from "@/lib/fx";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useDatosCartera } from "@/lib/useDatosCartera";
+import { posiciones, resumen } from "@/lib/estadoCuenta";
 import { supabase } from "@/lib/supabase";
 import { Bond, PatrimonioSnapshot } from "@/lib/types";
 import { computePortfolio, portfolioTotals, formatMoney, formatPct } from "@/lib/calculations";
@@ -70,35 +72,30 @@ export default function DashboardPage() {
       .catch(() => setTicker([]));
   }, []);
 
+  // Mismo cálculo que Clientes, Estado de cuenta y el portal: precio + cupón corrido, con costos de compra.
+  const datos = useDatosCartera();
+  const res = useMemo(() => (datos.cargando ? null : resumen(posiciones(datos.bonds, datos.costos, datos.instrumentos, datos.tasas, datos.fxPorPropuesta))), [datos]);
+  const valorTotalUSD = res ? res.valorUSD : null;
+  const rentabilidadTotal = res && res.invertidoUSD > 0 ? (res.resultadoUSD / res.invertidoUSD) * 100 : 0;
   const computed = computePortfolio(bonds);
-  const totalsPerCurrency = portfolioTotals(computed);
+  void toUSD; void tasas; void portfolioTotals;
 
-  const valorTotalUSD = tasas
-    ? Object.entries(totalsPerCurrency).reduce((s, [m, t]) => s + toUSD(t.valorTotal, m, tasas), 0)
-    : null;
-  const costoTotalUSD = tasas
-    ? Object.entries(totalsPerCurrency).reduce((s, [m, t]) => s + toUSD(t.costoTotal, m, tasas), 0)
-    : null;
-  const gananciaTotalUSD =
-    valorTotalUSD !== null && costoTotalUSD !== null ? valorTotalUSD - costoTotalUSD : null;
-  const rentabilidadTotal =
-    costoTotalUSD && costoTotalUSD > 0 && gananciaTotalUSD !== null
-      ? (gananciaTotalUSD / costoTotalUSD) * 100
-      : 0;
-
-  const last = snapshots[snapshots.length - 1];
-  const prevDay = snapshots[snapshots.length - 2];
-  const prevMonth = snapshots.find(
+  // El histórico arranca con la cartera actual (los registros anteriores eran de otra cartera).
+  const inicioCartera = bonds.reduce((m, b) => { const f = (b.fecha_compra ?? b.created_at ?? "").slice(0, 10); return f && f < m ? f : m; }, "9999-12-31");
+  const snapshotsCartera = snapshots.filter((x) => x.fecha >= inicioCartera);
+  const last = snapshotsCartera[snapshotsCartera.length - 1];
+  const prevDay = snapshotsCartera[snapshotsCartera.length - 2];
+  const prevMonth = snapshotsCartera.find(
     (s) => new Date(s.fecha) <= new Date(Date.now() - 30 * 86400000)
   );
-  const prevYear = snapshots.find(
+  const prevYear = snapshotsCartera.find(
     (s) => new Date(s.fecha) <= new Date(Date.now() - 365 * 86400000)
   );
 
   const varDia = last && prevDay ? ((last.valor_total - prevDay.valor_total) / prevDay.valor_total) * 100 : 0;
   const varMes = last && prevMonth ? ((last.valor_total - prevMonth.valor_total) / prevMonth.valor_total) * 100 : 0;
   const varAnio = last && prevYear ? ((last.valor_total - prevYear.valor_total) / prevYear.valor_total) * 100 : 0;
-  const maxHistorico = snapshots.reduce(
+  const maxHistorico = snapshotsCartera.reduce(
     (max, s) => Math.max(max, s.valor_total),
     valorTotalUSD ?? 0
   );
@@ -161,9 +158,9 @@ export default function DashboardPage() {
         </div>
 
         <Panel title="Evolución patrimonial">
-          {snapshots.length > 0 ? (
+          {snapshotsCartera.length > 0 ? (
             <PatrimonioChart
-              data={snapshots.map((s) => ({
+              data={snapshotsCartera.map((s) => ({
                 fecha: new Date(s.fecha).toLocaleDateString("es-UY", {
                   day: "2-digit",
                   month: "short",

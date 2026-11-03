@@ -11,7 +11,8 @@ export default function Alternativas({ filas, monto, moneda, anios, impreso = fa
   const h = Math.max(1, Math.round(anios));
   return (
     <div className="flex flex-col gap-2">
-      <table className={clsx("w-full tabular-nums", impreso ? "text-[10px]" : "text-sm")}>
+      <div className={impreso ? "" : "-mx-2 overflow-x-auto px-2"}>
+      <table className={clsx("w-full tabular-nums", impreso ? "text-[10px]" : "min-w-[520px] text-sm")}>
         <thead>
           <tr className={clsx("border-b text-left", impreso ? "border-[#1E3A5F] text-[9px] uppercase tracking-[0.06em] text-muted" : "border-ink-border text-xs text-muted")}>
             <th className="py-1.5 font-medium">Alternativa</th>
@@ -40,6 +41,7 @@ export default function Alternativas({ filas, monto, moneda, anios, impreso = fa
           })}
         </tbody>
       </table>
+      </div>
       <p className={clsx("text-muted", impreso ? "text-[8.5px]" : "text-[11px]")}>
         Sobre {fmtMonto(monto, moneda)}, con interés compuesto. “Diferencia” es cuánto más gana la propuesta en {h} años frente a cada alternativa.
         El plazo fijo se muestra antes de IRPF (los depósitos también lo pagan) y su tasa puede cambiar al renovar.

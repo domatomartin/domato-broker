@@ -192,6 +192,7 @@ export default function CarteraPage() {
   ];
 
   const totalUSD = tasas ? calcTotalUSD(totales, tasas) : null;
+  const corridoUSD = tasas ? computed.reduce((acc, b) => acc + aUSD(b.interes_corrido || 0, b.moneda, tasas), 0) : 0;
 
   const monedasPresentes = [...new Set(bondsPorCuenta.map((b) => b.moneda))];
   const monedasFiltro: MonedaFiltro[] = (["USD", "UYU", "ARS", "UI"] as MonedaFiltro[]).filter(
@@ -264,11 +265,16 @@ export default function CarteraPage() {
         <div className="rounded-lg border border-gold/40 bg-gold/5 p-5 flex items-center justify-between">
           <div>
             <span className="text-xs font-semibold uppercase tracking-wide text-gold">
-              Total cartera equivalente USD
+              Total cartera equivalente USD · precio limpio
             </span>
             <p className="text-3xl font-mono font-bold text-gold mt-1">
               {formatMoney(totalUSD, "USD")}
             </p>
+            {corridoUSD > 0 && (
+              <p className="text-xs text-paper mt-1">
+                + intereses corridos ≈ {formatMoney(corridoUSD, "USD")} = {formatMoney(totalUSD + corridoUSD, "USD")} (el valor que figura en Clientes, Estado de cuenta y el portal)
+              </p>
+            )}
             <p className="text-xs text-muted mt-1">
               1 USD = {tasas!.UYU_per_USD.toFixed(2)} UYU · 1 UI = {tasas!.UI_in_UYU.toFixed(4)} UYU{tasas!.UI_fuente === "BCU" && tasas!.UI_fecha ? ` (BCU ${tasas!.UI_fecha.split("-").reverse().join("/")})` : " (valor de respaldo)"} · 1 USD = {tasas!.ARS_per_USD.toFixed(0)} ARS{tasas!.EUR_per_USD ? ` · 1 EUR = ${(1 / tasas!.EUR_per_USD).toFixed(3)} USD` : ""}{tasas!.BRL_per_USD ? ` · 1 USD = ${tasas!.BRL_per_USD.toFixed(2)} BRL` : ""}
             </p>

@@ -36,6 +36,17 @@ export async function correrNovedades(sb: SupabaseClient = admin()) {
     await sb.from("app_config").upsert({ clave: "vector_vistos", valor: [...new Set([...(vistosVector ?? []), ...vector.map((v) => v.isin)])], actualizado: new Date().toISOString() }, { onConflict: "clave" });
     const precios = vector.filter((v) => ya.has(v.isin) && v.precio != null).map((v) => ({ isin: v.isin, precio: v.precio, cupon_corrido: v.cupon_corrido, fecha_precio: v.fecha_precio }));
     for (let i = 0; i < precios.length; i += 200) await sb.from("instrumentos").upsert(precios.slice(i, i + 200), { onConflict: "isin" });
+    // Precio de las tenencias de los clientes: el del vector del día (las letras cotizan en tasa y se dejan aparte).
+    const { data: tenencias } = await sb.from("bonds").select("id, isin").eq("estado", "activo").not("isin", "is", null);
+    const porIsin = new Map(vector.filter((v) => v.precio != null && !/Regulaci.n Monetaria|Letra de Tesor/i.test(v.especie ?? "") && !v.isin.startsWith("UYLR") && !v.isin.startsWith("US912797")).map((v) => [v.isin, v.precio as number]));
+    let actualizadas = 0;
+    for (const t of (tenencias as { id: string; isin: string }[]) ?? []) {
+      const p = porIsin.get(t.isin);
+      if (p == null) continue;
+      await sb.from("bonds").update({ precio_actual: p, precio_updated_at: new Date().toISOString() }).eq("id", t.id);
+      actualizadas++;
+    }
+    resultado.tenencias = actualizadas;
     // Histórico: el precio del día queda guardado para los gráficos (sin pedirle nada más a la BVM).
     const hist = vector.filter((v) => v.precio != null && v.fecha_precio).map((v) => ({ isin: v.isin, fecha: v.fecha_precio, precio: v.precio }));
     for (let i = 0; i < hist.length; i += 500) await sb.from("precios_historicos").upsert(hist.slice(i, i + 500), { onConflict: "isin,fecha" });
