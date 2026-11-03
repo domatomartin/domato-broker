@@ -25,7 +25,11 @@ export default function HistoricoPage() {
       .from("patrimonio_snapshots")
       .select("*")
       .order("fecha", { ascending: true })
-      .then(({ data }) => setSnapshots((data as PatrimonioSnapshot[]) ?? []));
+      .then(({ data }) => {
+        // Se descartan registros vacíos y los del cálculo viejo que sumaba pesos como dólares (2026-10-31 a 2026-11-02).
+        const lista = ((data as PatrimonioSnapshot[]) ?? []).filter((x) => x.valor_total > 0 && !(x.fecha >= "2026-10-29" && x.fecha <= "2026-11-02"));
+        setSnapshots(lista);
+      });
   }, []);
 
   const last = snapshots[snapshots.length - 1];
