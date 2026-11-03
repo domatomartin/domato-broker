@@ -10,6 +10,8 @@ import { AVISO_SIMULACION, fmtFecha, fmtMonto, fmtNum } from "@/components/BondA
 import TextoIA from "@/components/TextoIA";
 import { NOMBRE_MONEDA, OBJETIVOS, RIESGOS, type MetricasCartera, type PerfilCliente } from "@/lib/propuesta";
 import type { Costos } from "@/lib/costos";
+import Alternativas from "@/components/propuesta/Alternativas";
+import type { Alternativa } from "@/lib/alternativas";
 
 // Paleta del informe: sobria, con un acento por tipo de instrumento.
 const COLOR_GRUPO: Record<string, string> = {
@@ -36,6 +38,7 @@ export default function InformePropuesta({
   estrategia = "",
   costos,
   onClose,
+  alternativas = [],
 }: {
   cliente: string;
   asesor: string;
@@ -45,6 +48,7 @@ export default function InformePropuesta({
   estrategia?: string;
   costos: Costos;
   onClose: () => void;
+  alternativas?: Alternativa[];
 }) {
   const [montado, setMontado] = useState(false);
   // En pantallas angostas (celular) achicamos la hoja A4 para que entre entera; al imprimir vuelve a tamaño real.
@@ -279,6 +283,14 @@ export default function InformePropuesta({
                   </tbody>
                 </table>
               </section>
+
+              {/* ─── Alternativas ─── */}
+              {alternativas.length > 1 && (
+                <section className="avoid-break">
+                  <Titulo n={sec()}>Comparación con alternativas</Titulo>
+                  <Alternativas filas={alternativas} monto={perfil.monto} moneda={perfil.moneda} anios={m.duration ?? m.plazoPromedio ?? 3} impreso />
+                </section>
+              )}
 
               {/* ─── Análisis ─── */}
               {conAnalisis && (

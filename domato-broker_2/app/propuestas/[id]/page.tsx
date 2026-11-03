@@ -14,6 +14,8 @@ import Escenarios from "@/components/propuesta/Escenarios";
 import InformePropuesta from "@/components/propuesta/InformePropuesta";
 import EjecutarCompra from "@/components/propuesta/EjecutarCompra";
 import CompartirPropuesta from "@/components/propuesta/CompartirPropuesta";
+import Alternativas from "@/components/propuesta/Alternativas";
+import { alternativasPara } from "@/lib/alternativas";
 import Seguimiento from "@/components/propuesta/Seguimiento";
 import { leer, guardar as guardarLocal } from "@/components/InformeBono";
 import type { FotoMercado } from "@/lib/mercado";
@@ -36,6 +38,8 @@ export default function PropuestaPage() {
 
   const [prop, setProp] = useState<Propuesta | null>(null);
   const [catalogo, setCatalogo] = useState<Instrumento[]>([]);
+  const [tbill, setTbill] = useState<number | null>(null);
+  useEffect(() => { fetch("/api/mercado").then((r) => r.json()).then((m) => setTbill(m?.datos?.find((d: { id: string }) => d.id === "IRX")?.valor ?? null)).catch(() => null); }, []);
   const [cliente, setCliente] = useState("");
   const [asesor, setAsesor] = useState("");
   const [perfil, setPerfil] = useState<PerfilCliente>(PERFIL_DEFECTO);
@@ -93,6 +97,10 @@ export default function PropuestaPage() {
   const mapa = useMemo(() => new Map(catalogo.map((i) => [i.isin, i])), [catalogo]);
   const fxs = useMemo(() => tiposParaPerfil(perfil.moneda, tasas), [perfil.moneda, tasas]);
   const metricas = useMemo(() => calcularCartera(items, perfil.monto, costos, undefined, fxs), [items, perfil.monto, costos, fxs]);
+  const alternativas = useMemo(
+    () => (metricas.lineas.length ? alternativasPara({ moneda: perfil.moneda, tirNeta: metricas.tirNeta, tirBruta: metricas.tirBruta, duration: metricas.duration, catalogo, costos, tbill }) : []),
+    [metricas, perfil.moneda, catalogo, costos, tbill]
+  );
   const ejecutada = prop?.estado === "ejecutada";
   const monedaRef = metricas.monedas.length === 1 ? metricas.monedas[0] : perfil.moneda;
 
@@ -392,6 +400,12 @@ export default function PropuestaPage() {
         <ResumenCartera m={metricas} moneda={monedaRef} />
       </Panel>
 
+      {alternativas.length > 1 && (
+        <Panel title="Frente a otras alternativas">
+          <Alternativas filas={alternativas} monto={perfil.monto} moneda={perfil.moneda} anios={metricas.duration ?? metricas.plazoPromedio ?? 3} />
+        </Panel>
+      )}
+
       <Panel title="Escenarios: qué pasa si…">
         <Escenarios m={metricas} moneda={perfil.moneda} />
       </Panel>
@@ -480,7 +494,7 @@ export default function PropuestaPage() {
       </Panel>
 
       {informe && (
-        <InformePropuesta cliente={cliente} asesor={asesor} perfil={perfil} metricas={metricas} analisis={analisis} estrategia={estrategia} costos={costos} onClose={() => setInforme(false)} />
+        <InformePropuesta cliente={cliente} asesor={asesor} perfil={perfil} metricas={metricas} analisis={analisis} estrategia={estrategia} costos={costos} onClose={() => setInforme(false)} alternativas={alternativas} />
       )}
       {ejecutando && (
         <EjecutarCompra
