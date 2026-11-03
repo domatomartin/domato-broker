@@ -36,6 +36,9 @@ export async function correrNovedades(sb: SupabaseClient = admin()) {
     await sb.from("app_config").upsert({ clave: "vector_vistos", valor: [...new Set([...(vistosVector ?? []), ...vector.map((v) => v.isin)])], actualizado: new Date().toISOString() }, { onConflict: "clave" });
     const precios = vector.filter((v) => ya.has(v.isin) && v.precio != null).map((v) => ({ isin: v.isin, precio: v.precio, cupon_corrido: v.cupon_corrido, fecha_precio: v.fecha_precio }));
     for (let i = 0; i < precios.length; i += 200) await sb.from("instrumentos").upsert(precios.slice(i, i + 200), { onConflict: "isin" });
+    // Histórico: el precio del día queda guardado para los gráficos (sin pedirle nada más a la BVM).
+    const hist = vector.filter((v) => v.precio != null && v.fecha_precio).map((v) => ({ isin: v.isin, fecha: v.fecha_precio, precio: v.precio }));
+    for (let i = 0; i < hist.length; i += 500) await sb.from("precios_historicos").upsert(hist.slice(i, i + 500), { onConflict: "isin,fecha" });
     if (nuevos.length) await sb.from("instrumentos").insert(nuevos);
     resultado.precios = precios.length;
     resultado.nuevos = nuevos.map((n) => `${n.isin} ${n.nombre}`);
@@ -57,6 +60,13 @@ export async function correrNovedades(sb: SupabaseClient = admin()) {
   } catch (e) {
     resultado.errorComunicados = e instanceof Error ? e.message : String(e);
   }
+
+  // Quedan registradas para el resumen del día en Inicio.
+  const filasNov = [
+    ...nuevos.map((n) => ({ tipo: "Título nuevo en la BVM", texto: n.nombre || n.isin, url: "/opciones" })),
+    ...comNuevos.map((c) => ({ tipo: "Comunicado BVM", texto: c.titulo, url: "https://www.bvm.com.uy/comunicados" })),
+  ];
+  if (filasNov.length) { try { await sb.from("novedades").insert(filasNov); } catch { /* opcional */ } }
 
   // 3) Aviso al celular.
   const partes: string[] = [];

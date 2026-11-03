@@ -11,6 +11,7 @@ import PatrimonioChart from "@/components/PatrimonioChart";
 import TickerStrip, { TickerItem } from "@/components/TickerStrip";
 import { computeBondAlerts, severityOrder } from "@/lib/alerts";
 import Link from "next/link";
+import ResumenDia from "@/components/ResumenDia";
 
 type Tasas = TasasFx & { ARS_per_USD: number; fetched_at: string };
 
@@ -112,9 +113,11 @@ export default function DashboardPage() {
             {greeting}, {userName}
           </h1>
           <p className="text-sm text-muted mt-1">
-            Esto es lo que cambió en tu patrimonio desde ayer.
+            Lo importante de hoy y cómo viene tu patrimonio.
           </p>
         </div>
+
+        <ResumenDia />
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
           <StatCard

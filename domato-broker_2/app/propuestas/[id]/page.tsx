@@ -13,6 +13,7 @@ import ResumenCartera from "@/components/propuesta/ResumenCartera";
 import Escenarios from "@/components/propuesta/Escenarios";
 import InformePropuesta from "@/components/propuesta/InformePropuesta";
 import EjecutarCompra from "@/components/propuesta/EjecutarCompra";
+import CompartirPropuesta from "@/components/propuesta/CompartirPropuesta";
 import Seguimiento from "@/components/propuesta/Seguimiento";
 import { leer, guardar as guardarLocal } from "@/components/InformeBono";
 import type { FotoMercado } from "@/lib/mercado";
@@ -322,6 +323,12 @@ export default function PropuestaPage() {
       </div>
 
       {msg && <p className={clsx("rounded px-3 py-2 text-sm", msg.tipo === "ok" ? "bg-gain/10 text-gain" : "bg-loss/10 text-loss")}>{msg.texto}</p>}
+
+      {!ejecutada && metricas.lineas.length > 0 && (
+        <Panel title="Aceptación del cliente">
+          <CompartirPropuesta propuestaId={prop.id} cliente={cliente} puede={pesoOk} antesDeCompartir={async () => { await guardar(prop.estado === "borrador" ? { estado: "presentada", fecha_presentada: new Date().toISOString() } : {}, true); }} />
+        </Panel>
+      )}
 
       {ejecutada && (
         <Panel title="Seguimiento: real contra propuesta">

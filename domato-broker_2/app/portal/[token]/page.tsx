@@ -9,6 +9,7 @@ import type { Instrumento } from "@/lib/bvm";
 import type { TasasFx } from "@/lib/fx";
 import { aUSD } from "@/lib/fx";
 import { cobrosDeCartera, mesLargo, posiciones, resumen, type BondConPropuesta } from "@/lib/estadoCuenta";
+import PortalPropuesta, { type PropuestaPortal } from "@/components/portal/PortalPropuesta";
 
 type Datos = {
   cliente: string | null;
@@ -24,6 +25,7 @@ const COLOR_MONEDA: Record<string, string> = { USD: "#15803D", UYU: "#0EA5E9", U
 
 export default function Portal({ params }: { params: { token: string } }) {
   const [datos, setDatos] = useState<Datos | null>(null);
+  const [propuesta, setPropuesta] = useState<PropuestaPortal | null>(null);
   const [tasas, setTasas] = useState<TasasFx | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -31,6 +33,7 @@ export default function Portal({ params }: { params: { token: string } }) {
     fetch(`/api/portal/${params.token}`).then(async (r) => {
       const j = await r.json();
       if (!r.ok || j.error) setError(j.error ?? "No se pudo cargar la cartera.");
+      else if (j.tipo === "propuesta") setPropuesta(j.propuesta);
       else setDatos(j);
     }).catch(() => setError("No se pudo cargar la cartera."));
     fetch("/api/cotizaciones").then((r) => r.json()).then(setTasas).catch(() => null);
@@ -61,7 +64,26 @@ export default function Portal({ params }: { params: { token: string } }) {
       </div>
     );
   }
-  if (!datos || !calc) return <div className="flex min-h-screen items-center justify-center bg-ink text-sm text-muted">Cargando tu cartera…</div>;
+  if (propuesta) {
+    return (
+      <div className="min-h-screen bg-ink">
+        <header className="border-b border-ink-border bg-ink-panel">
+          <div className="mx-auto flex max-w-4xl items-center justify-between gap-3 px-4 py-4">
+            <div className="flex items-center gap-2.5">
+              <img src="/logo.jpg" alt="Domato" className="h-9 w-9 rounded-lg object-cover" />
+              <div className="leading-tight">
+                <p className="font-display text-sm font-bold text-paper">Domato</p>
+                <p className="text-[10px] uppercase tracking-[0.14em] text-muted">Gestión patrimonial</p>
+              </div>
+            </div>
+            <button type="button" onClick={() => window.print()} className="rounded-full border border-ink-border px-3 py-1.5 text-xs text-muted print:hidden">Imprimir</button>
+          </div>
+        </header>
+        <PortalPropuesta token={params.token} propuesta={propuesta} />
+      </div>
+    );
+  }
+  if (!datos || !calc) return <div className="flex min-h-screen items-center justify-center bg-ink text-sm text-muted">Cargando…</div>;
 
   const { pos, res, proximos, tir } = calc;
   const usd = (v: number, m: string) => (tasas ? aUSD(v, m, tasas) : v);
