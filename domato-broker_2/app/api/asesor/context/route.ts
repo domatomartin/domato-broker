@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { usuarioDesdeRequest } from "@/lib/authServer";
 import { contextoAmpliado } from "@/lib/contextoAsesor";
+import { GET as cotizaciones } from "@/app/api/cotizaciones/route";
 
 export const maxDuration = 30;
 
@@ -44,11 +45,8 @@ export async function GET(req: Request) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   let tasas: Tasas = { UYU_per_USD: 43.5, ARS_per_USD: 1100, UI_in_UYU: 6.2 };
-  try {
-    const base = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000";
-    const r = await fetch(`${base}/api/cotizaciones`, { signal: AbortSignal.timeout(5000) });
-    if (r.ok) tasas = await r.json();
-  } catch { /* fallback */ }
+  // Mismas cotizaciones que el resto de la app (BCU para la UI), sin pasar por HTTP.
+  try { tasas = await (await cotizaciones()).json(); } catch { /* fallback */ }
 
   const byMoneda: Record<string,{valorTotal:number;costoTotal:number;usdTotal:number}> = {};
   let totalUSD = 0, totalCostoUSD = 0;
