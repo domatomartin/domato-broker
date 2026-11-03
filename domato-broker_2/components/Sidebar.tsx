@@ -40,6 +40,7 @@ export const groups: {
     label: "Cartera",
     items: [
       { href: "/clientes", label: "Clientes", icon: Users },
+      { href: "/agenda", label: "Agenda", icon: CalendarDays },
       { href: "/cartera", label: "Cartera", icon: Wallet },
       { href: "/opciones", label: "Opciones de inversión", icon: Landmark },
       { href: "/seguimiento", label: "Seguimiento", icon: Star },

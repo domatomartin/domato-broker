@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { linkWhatsApp } from "@/lib/whatsapp";
 
 type Aceptacion = { nombre: string; fecha: string } | null;
 
@@ -18,6 +19,11 @@ export default function CompartirPropuesta({ propuestaId, cliente, antesDeCompar
   const [visitas, setVisitas] = useState(0);
   const [copiado, setCopiado] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [telefono, setTelefono] = useState<string | null>(null);
+  useEffect(() => {
+    if (!cliente) return;
+    supabase.from("clientes").select("telefono").ilike("nombre", cliente.trim()).limit(1).then(({ data }) => setTelefono((data as { telefono: string | null }[] | null)?.[0]?.telefono ?? null));
+  }, [cliente]);
 
   async function cargar() {
     const [{ data: l }, { data: p }] = await Promise.all([
@@ -48,7 +54,7 @@ export default function CompartirPropuesta({ propuestaId, cliente, antesDeCompar
     await supabase.from("portal_links").update({ revocado: true }).eq("token", token);
     setToken(null);
   }
-  const wa = token ? `https://wa.me/?text=${encodeURIComponent(`Hola${cliente ? ` ${cliente.split(" ")[0]}` : ""}, te comparto la propuesta de inversión. Podés verla y aceptarla acá: ${url}`)}` : "";
+  const wa = token ? linkWhatsApp(telefono, `Hola${cliente ? ` ${cliente.split(" ")[0]}` : ""}, te comparto la propuesta de inversión. Podés verla y aceptarla acá: ${url}`) : "";
 
   return (
     <div className="flex flex-col gap-2 text-sm">

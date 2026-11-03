@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { fmtFecha } from "@/components/BondAnalysis";
+import { linkWhatsApp } from "@/lib/whatsapp";
 
 type Link = { token: string; cuenta: string; cliente: string | null; creado: string; revocado: boolean; ultimo_acceso: string | null; accesos: number };
 
@@ -13,7 +14,7 @@ function nuevoToken() {
 }
 
 /** Links privados de solo lectura para que cada cliente vea su cartera. */
-export default function PortalLinks({ clientes }: { clientes: { c: string; nombre: string }[] }) {
+export default function PortalLinks({ clientes }: { clientes: { c: string; nombre: string; telefono?: string | null }[] }) {
   const [links, setLinks] = useState<Link[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copiado, setCopiado] = useState<string | null>(null);
@@ -42,7 +43,7 @@ export default function PortalLinks({ clientes }: { clientes: { c: string; nombr
   if (!links) return <p className="text-xs text-muted">Cargando…</p>;
   return (
     <div className="flex flex-col gap-2">
-      {clientes.map(({ c, nombre }) => {
+      {clientes.map(({ c, nombre, telefono }) => {
         const activo = links.find((l) => l.cuenta === c && !l.revocado);
         return (
           <div key={c} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-ink-border px-3 py-2.5 text-sm">
@@ -61,6 +62,7 @@ export default function PortalLinks({ clientes }: { clientes: { c: string; nombr
               {activo ? (
                 <>
                   <button type="button" onClick={() => copiar(activo.token)} className="rounded-full bg-gold px-3 py-1.5 font-medium text-white">{copiado === activo.token ? "✓ Copiado" : "Copiar link"}</button>
+                  <a href={linkWhatsApp(telefono, `Hola ${nombre.split(" ")[0]}, te dejo el link para ver tu cartera actualizada cuando quieras: ${url(activo.token)}`)} target="_blank" rel="noreferrer" className="rounded-full border border-ink-border px-3 py-1.5 font-medium text-paper">WhatsApp</a>
                   <a href={url(activo.token)} target="_blank" rel="noreferrer" className="underline text-muted">Ver como el cliente</a>
                   <button type="button" onClick={() => desactivar(activo.token)} className="underline text-loss">Desactivar</button>
                 </>

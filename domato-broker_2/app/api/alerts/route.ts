@@ -122,6 +122,27 @@ export async function GET(request: Request) {
     }
   } catch { /* no frena las alertas */ }
 
+  // Recordatorio: reuniones de hoy (solo en la corrida diaria de las 9).
+  let reunionesHoy = 0;
+  if (!sinEmail) {
+    try {
+      const ini = new Date(); ini.setUTCHours(3, 0, 0, 0); // 00:00 en Uruguay
+      const fin = new Date(ini.getTime() + 86_400_000);
+      const { data: rs } = await supabaseAdmin.from("reuniones").select("fecha, motivo, cliente_id, clientes(nombre)").eq("hecha", false).gte("fecha", ini.toISOString()).lt("fecha", fin.toISOString()).order("fecha");
+      reunionesHoy = rs?.length ?? 0;
+      if (rs?.length) {
+        const hora = (f: string) => new Date(f).toLocaleTimeString("es-UY", { hour: "2-digit", minute: "2-digit", timeZone: "America/Montevideo" });
+        const nom = (r: { clientes?: { nombre?: string } | { nombre?: string }[] | null }) => (Array.isArray(r.clientes) ? r.clientes[0]?.nombre : r.clientes?.nombre) ?? "cliente";
+        await enviarPush({
+          titulo: rs.length === 1 ? "Hoy tenés una reunión" : `Hoy tenés ${rs.length} reuniones`,
+          cuerpo: rs.slice(0, 3).map((r) => `${hora(r.fecha)} ${nom(r)} · ${r.motivo}`).join(" · "),
+          url: rs.length === 1 ? `/clientes/${rs[0].cliente_id}` : "/agenda",
+          tag: "reuniones",
+        }, supabaseAdmin);
+      }
+    } catch { /* no frena las alertas */ }
+  }
+
   // Recordatorio: cobros de mañana en todas las carteras (solo en la corrida diaria, no en "Revisar ahora").
   let cobrosManiana = 0;
   if (!sinEmail) {
@@ -176,5 +197,5 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json({ novedades, alerts, clientes, nuevas: nuevas.length, push, seguimiento: seguidosDisparados.length, cobrosManiana, emailed: !sinEmail && Boolean(resendKey && emailTo) });
+  return NextResponse.json({ novedades, alerts, clientes, nuevas: nuevas.length, push, seguimiento: seguidosDisparados.length, cobrosManiana, reunionesHoy, emailed: !sinEmail && Boolean(resendKey && emailTo) });
 }

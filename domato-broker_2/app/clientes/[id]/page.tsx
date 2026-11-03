@@ -10,6 +10,8 @@ import { fmtFecha, fmtMonto, fmtNum } from "@/components/BondAnalysis";
 import { hoyIso } from "@/lib/bondMath";
 import { carteraLabel } from "@/lib/carteras";
 import { PERFIL_DEFECTO } from "@/lib/propuesta";
+import Reuniones from "@/components/clientes/Reuniones";
+import { linkWhatsApp } from "@/lib/whatsapp";
 import { DESCRIPCION_RIESGO, PREGUNTAS, PUNTAJE_MAX, evaluarPerfil, type FichaCliente, type NotaCliente } from "@/lib/perfilInversor";
 
 const COLOR_RIESGO: Record<string, string> = { conservador: "bg-[#2a78d6]/10 text-[#1c5cab]", moderado: "bg-[#eda100]/15 text-[#8a5d00]", agresivo: "bg-[#e34948]/10 text-[#b42d2c]" };
@@ -103,6 +105,7 @@ export default function FichaPage({ params }: { params: { id: string } }) {
         <div className="flex flex-wrap gap-2">
           <button type="button" onClick={nuevaPropuesta} className="rounded bg-gold px-4 py-2 text-sm font-medium text-white">Nueva propuesta con este perfil</button>
           {ficha.cuenta && <Link href={`/estado-cuenta?cuenta=${encodeURIComponent(ficha.cuenta)}`} className="rounded border border-ink-border px-4 py-2 text-sm text-paper">Estado de cuenta</Link>}
+          {ficha.telefono && <a href={linkWhatsApp(ficha.telefono, `Hola ${ficha.nombre.split(" ")[0]}, `)} target="_blank" rel="noreferrer" className="rounded border border-ink-border px-4 py-2 text-sm text-paper">WhatsApp</a>}
         </div>
       </div>
 
@@ -186,11 +189,15 @@ export default function FichaPage({ params }: { params: { id: string } }) {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
+        <Panel title="Reuniones">
+          <Reuniones clienteId={ficha.id} cliente={ficha.nombre} onNota={(t) => { setNuevaNota(t); document.getElementById("nota-nueva")?.focus(); }} />
+        </Panel>
+
         <Panel title="Notas de reuniones">
           <div className="flex flex-col gap-2">
             <div className="flex flex-wrap gap-2">
               <input type="date" className="rounded border border-ink-border bg-ink px-2 py-2 text-sm text-paper" value={fechaNota} onChange={(e) => setFechaNota(e.target.value)} />
-              <textarea className={clsx(input, "min-h-[60px] flex-1")} value={nuevaNota} onChange={(e) => setNuevaNota(e.target.value)} placeholder="Qué se habló, qué quedó pendiente…" />
+              <textarea id="nota-nueva" className={clsx(input, "min-h-[60px] flex-1")} value={nuevaNota} onChange={(e) => setNuevaNota(e.target.value)} placeholder="Qué se habló, qué quedó pendiente…" />
             </div>
             <button type="button" onClick={agregarNota} disabled={!nuevaNota.trim()} className="self-end rounded bg-gold px-3 py-1.5 text-xs font-medium text-white disabled:opacity-40">Agregar nota</button>
             {notas.length ? (

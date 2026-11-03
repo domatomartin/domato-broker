@@ -218,7 +218,7 @@ export default function ClientesPage() {
       </Panel>
 
       <Panel title="Portal para clientes">
-        <PortalLinks clientes={filasCliente.map((f) => ({ c: f.c, nombre: f.nombre }))} />
+        <PortalLinks clientes={filasCliente.map((f) => ({ c: f.c, nombre: f.nombre, telefono: fichaDe(f.c)?.telefono ?? null }))} />
       </Panel>
 
       {detalle && <DetalleInstrumento i={detalle} costos={datos.costos} onClose={() => setDetalle(null)} />}

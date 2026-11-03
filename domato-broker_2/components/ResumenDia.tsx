@@ -23,15 +23,20 @@ export default function ResumenDia() {
   const [seguidos, setSeguidos] = useState<(Seguido & { nombre?: string })[]>([]);
   const [fichas, setFichas] = useState<FichaCliente[]>([]);
   const [novedades, setNovedades] = useState<Novedad[]>([]);
+  const [reuniones, setReuniones] = useState<{ fecha: string; motivo: string; cliente_id: string }[]>([]);
   const hoy = hoyIso();
 
   useEffect(() => {
     (async () => {
-      const [{ data: s }, { data: f }, { data: n }] = await Promise.all([
+      const ini = new Date(); ini.setHours(0, 0, 0, 0);
+      const fin = new Date(ini.getTime() + 2 * 86_400_000);
+      const [{ data: s }, { data: f }, { data: n }, { data: r }] = await Promise.all([
         supabase.from("seguimiento").select("*").eq("disparada", true),
         supabase.from("clientes").select("*"),
         supabase.from("novedades").select("*").gte("fecha", sumarDias(hoyIso(), -7)).order("fecha", { ascending: false }).limit(8),
+        supabase.from("reuniones").select("fecha, motivo, cliente_id").eq("hecha", false).gte("fecha", ini.toISOString()).lt("fecha", fin.toISOString()).order("fecha"),
       ]);
+      setReuniones((r as { fecha: string; motivo: string; cliente_id: string }[]) ?? []);
       const segs = (s as Seguido[]) ?? [];
       if (segs.length) {
         const { data: ins } = await supabase.from("instrumentos").select("isin, nombre").in("isin", segs.map((x) => x.isin));
@@ -77,8 +82,14 @@ export default function ResumenDia() {
       if (!f.perfil) revisiones.push({ texto: `${f.nombre}: falta el test de perfil`, href: `/clientes/${f.id}` });
       else if (Date.now() - Date.parse(f.perfil.fecha) > 365 * 86_400_000) revisiones.push({ texto: `${f.nombre}: test de perfil vencido`, sub: `Hecho el ${fmtFecha(f.perfil.fecha)}`, href: `/clientes/${f.id}` });
     }
+    const reus: Item[] = reuniones.map((r) => {
+      const d = new Date(r.fecha);
+      const esHoy = d.toDateString() === new Date().toDateString();
+      return { texto: `${esHoy ? "Hoy" : "Mañana"} ${d.toLocaleTimeString("es-UY", { hour: "2-digit", minute: "2-digit" })} · ${fichas.find((f) => f.id === r.cliente_id)?.nombre ?? "cliente"}`, sub: r.motivo, href: `/clientes/${r.cliente_id}` };
+    });
     const nov: Item[] = novedades.map((n) => ({ texto: n.texto, sub: `${fmtFecha(n.fecha)} · ${n.tipo}`, href: n.url ?? "/opciones" }));
     return [
+      { titulo: "Reuniones de hoy y mañana", vacio: "Sin reuniones agendadas.", items: reus },
       { titulo: "Cobros de hoy y mañana", vacio: "Sin cobros hoy ni mañana.", items: cobrosCerca },
       { titulo: "Señales activas", vacio: "Ninguna señal activa en las estrategias.", items: senales },
       { titulo: "Tu lista de seguimiento", vacio: "Ningún título cruzó su nivel.", items: seg },
@@ -86,7 +97,7 @@ export default function ResumenDia() {
       { titulo: "Para hacer con clientes", vacio: "Todo al día.", items: revisiones },
       { titulo: "Novedades de la semana", vacio: "Sin títulos nuevos ni comunicados de la BVM.", items: nov },
     ];
-  }, [datos, seguidos, fichas, novedades, hoy]);
+  }, [datos, seguidos, fichas, novedades, reuniones, hoy]);
 
   if (!bloques) return <div className="h-32 animate-pulse rounded-2xl bg-ink-panel" />;
   const pendientes = bloques.reduce((s, b) => s + b.items.length, 0);
