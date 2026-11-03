@@ -2,6 +2,9 @@ import { aUSD, type TasasFx } from "@/lib/fx";
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { usuarioDesdeRequest } from "@/lib/authServer";
+import { contextoAmpliado } from "@/lib/contextoAsesor";
+
+export const maxDuration = 30;
 
 interface Bond {
   nombre: string; isin: string | null; moneda: string; cantidad: number;
@@ -129,6 +132,8 @@ export async function GET(req: Request) {
     .sort((a,b) => b[1].usdTotal - a[1].usdTotal)
     .map(([mon,t]) => `${mon} ${fmtUSD(t.usdTotal)} (${fmtN(totalUSD>0?t.usdTotal/totalUSD*100:0,0)}%)`)
     .join(' | ') + '\n';
+
+  try { ctx += await contextoAmpliado(supabase, tasas); } catch (e) { console.error("[asesor/context] ampliado", e); }
 
   return NextResponse.json({ context:ctx, bonds, totales:byMoneda, totalUSD, proximosCupones:proxCupones });
            }

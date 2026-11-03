@@ -47,14 +47,19 @@ export async function POST(req: NextRequest) {
     "- Si los datos son insuficientes para una recomendación firme, indicalo claramente.",
     "- Usá markdown (negritas, listas) para estructurar respuestas largas.",
     "- Nunca inventes datos que no estén en el contexto.",
+    "- Conocés a todos los clientes (sección CLIENTES y PROSPECTOS) con su perfil de inversor: toda sugerencia tiene que respetar el perfil, el plazo y la moneda del cliente. Si un cliente no tiene test de perfil, decilo y pedí que se haga antes de recomendar.",
+    "- Para buscar oportunidades usá la sección CATÁLOGO (curva soberana y spreads); explicá el riesgo extra cuando algo rinde mucho más que el soberano.",
+    "- La renta variable figura con rendimiento estimado desde la par: si el precio de mercado está muy arriba de 100, aclará que quien compra hoy gana menos.",
+    "- Las TIR en UI y UP son reales (sin inflación): no las compares directo con dólares o pesos.",
+    "- Esto es apoyo para el asesor; no es una orden de compra. No ejecutes nada.",
     "",
     "=== ESTADO ACTUAL DE LA CARTERA ===",
     contextText || "No se pudo obtener el contexto de la cartera en este momento.",
   ].join("\n");
 
   const stream = client.messages.stream({
-    model: "claude-haiku-4-5-20251001",
-    max_tokens: 2048,
+    model: "claude-sonnet-5-5",
+    max_tokens: 3000,
     system: systemPrompt,
     messages,
   });
