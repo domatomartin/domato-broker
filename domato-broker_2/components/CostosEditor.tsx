@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRol } from "@/lib/rol";
 import { COSTOS_DEFECTO, ETIQUETAS_COSTOS, type Costos } from "@/lib/costos";
 
 /** Botón + panel para ver y editar los costos del corredor. */
@@ -11,6 +12,7 @@ export default function CostosEditor({
   costos: Costos;
   onGuardar: (c: Costos) => Promise<string | null>;
 }) {
+  const { esDuenio } = useRol();
   const [abierto, setAbierto] = useState(false);
   const [vals, setVals] = useState<Record<keyof Costos, string>>(() => aTexto(costos));
   const [msg, setMsg] = useState<string | null>(null);
@@ -30,6 +32,7 @@ export default function CostosEditor({
 
   const resumen = `Compra ${fmt(costos.comision_compra_pct)}% · custodia ${fmt(costos.custodia_anual_pct)}% · IRPF ${fmt(costos.irpf_soberano_pct)}/${fmt(costos.irpf_privado_pct)}/${fmt(costos.irpf_exterior_pct)}%`;
 
+  if (!esDuenio) return null;
   return (
     <div className="relative print:hidden">
       <button

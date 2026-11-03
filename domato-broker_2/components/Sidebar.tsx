@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
+import { useRol } from "@/lib/rol";
 import {
   LayoutDashboard,
   BellRing,
@@ -23,6 +24,7 @@ import {
   ArrowRightLeft,
   Star,
   Lock,
+  UsersRound,
 } from "lucide-react";
 
 export const groups: {
@@ -85,12 +87,14 @@ export const groups: {
     items: [
       { href: "/perfil", label: "Perfil", icon: UserCircle },
       { href: "/seguridad", label: "Seguridad", icon: Lock },
+      { href: "/equipo", label: "Equipo", icon: UsersRound },
     ],
   },
 ];
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const { esDuenio } = useRol();
 
   return (
     <aside className="w-64 shrink-0 bg-sidebar px-4 py-6 hidden md:flex md:flex-col print:!hidden">
@@ -117,7 +121,7 @@ export default function Sidebar() {
               {group.label}
             </p>
             <div className="flex flex-col gap-0.5">
-              {group.items.map((item) => {
+              {group.items.filter((item) => esDuenio || item.href !== "/equipo").map((item) => {
                 const active = pathname?.startsWith(item.href);
                 const Icon = item.icon;
                 return (

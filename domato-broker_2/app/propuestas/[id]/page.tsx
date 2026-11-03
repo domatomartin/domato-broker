@@ -22,6 +22,7 @@ import type { FotoMercado } from "@/lib/mercado";
 import { evaluarSenales, INDICADORES, type Senal, type SenalEvaluada } from "@/lib/senales";
 import { efectivo } from "@/lib/bvm";
 import { useCostos } from "@/lib/useCostos";
+import { useRol } from "@/lib/rol";
 import type { Instrumento } from "@/lib/bvm";
 import {
   ESTADOS, OBJETIVOS, PERFIL_DEFECTO, RIESGOS,
@@ -36,6 +37,7 @@ export default function PropuestaPage() {
   const { id } = useParams<{ id: string }>();
   const { costos, guardar: guardarCostos } = useCostos();
 
+  const { esDuenio } = useRol();
   const [prop, setProp] = useState<Propuesta | null>(null);
   const [catalogo, setCatalogo] = useState<Instrumento[]>([]);
   const [tbill, setTbill] = useState<number | null>(null);
@@ -322,7 +324,7 @@ export default function PropuestaPage() {
               Descartar
             </button>
           )}
-          {!ejecutada && (
+          {!ejecutada && esDuenio && (
             <button type="button" onClick={async () => { if (sucio && !(await guardar())) return; setEjecutando(true); }} disabled={!metricas.lineas.length || !pesoOk} className="rounded bg-gold px-4 py-2 text-sm font-medium text-ink-panel hover:bg-gold-bright disabled:opacity-50">
               Ejecutar compra
             </button>

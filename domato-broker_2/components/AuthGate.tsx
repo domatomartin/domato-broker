@@ -153,7 +153,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
           </div>
 
           <h1 className="font-display text-xl text-paper mb-1">Iniciar sesión</h1>
-          <p className="text-sm text-muted mb-6">Acceso restringido al administrador.</p>
+          <p className="text-sm text-muted mb-6">Acceso solo para el equipo de Domato.</p>
 
           <form onSubmit={handleLogin} className="flex flex-col gap-3">
             <input

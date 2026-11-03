@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { LayoutDashboard, Briefcase, Landmark, FileSignature, Menu, X } from "lucide-react";
 import { groups } from "./Sidebar";
+import { useRol } from "@/lib/rol";
 
 const TABS = [
   { href: "/dashboard", label: "Inicio", icon: LayoutDashboard },
@@ -16,6 +17,7 @@ const TABS = [
 export default function BottomNav() {
   const pathname = usePathname();
   const [abierto, setAbierto] = useState(false);
+  const { esDuenio } = useRol();
 
   // Cerrar el menú al navegar.
   useEffect(() => { setAbierto(false); }, [pathname]);
@@ -45,7 +47,7 @@ export default function BottomNav() {
               <div key={g.label} className="mb-3">
                 <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-sidebar-muted">{g.label}</p>
                 <div className="grid grid-cols-3 gap-2">
-                  {g.items.map(({ href, label, icon: Icon }) => {
+                  {g.items.filter((it) => esDuenio || it.href !== "/equipo").map(({ href, label, icon: Icon }) => {
                     const active = pathname?.startsWith(href);
                     return (
                       <Link
