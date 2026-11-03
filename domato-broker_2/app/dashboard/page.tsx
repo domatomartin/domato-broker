@@ -82,7 +82,8 @@ export default function DashboardPage() {
 
   // El histórico arranca con la cartera actual (los registros anteriores eran de otra cartera).
   const inicioCartera = bonds.reduce((m, b) => { const f = (b.fecha_compra ?? b.created_at ?? "").slice(0, 10); return f && f < m ? f : m; }, "9999-12-31");
-  const snapshotsCartera = snapshots.filter((x) => x.fecha >= inicioCartera);
+  // Se descartan registros vacíos o claramente erróneos (más de 3 veces lejos del valor actual).
+  const snapshotsCartera = snapshots.filter((x) => x.fecha >= inicioCartera && x.valor_total > 0 && (!valorTotalUSD || (x.valor_total < valorTotalUSD * 3 && x.valor_total > valorTotalUSD / 3)));
   const last = snapshotsCartera[snapshotsCartera.length - 1];
   const prevDay = snapshotsCartera[snapshotsCartera.length - 2];
   const prevMonth = snapshotsCartera.find(
