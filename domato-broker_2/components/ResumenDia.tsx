@@ -109,7 +109,7 @@ export default function ResumenDia() {
         <p className="text-xs text-muted">{pendientes ? `${pendientes} cosa${pendientes === 1 ? "" : "s"} para mirar` : "Nada urgente hoy"}</p>
       </div>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {bloques.map((b) => (
+        {bloques.filter((b) => b.items.length).map((b) => (
           <div key={b.titulo} className={clsx("rounded-xl px-3 py-2.5", b.items.length ? "bg-ink" : "bg-ink/50")}>
             <p className="mb-1 flex items-center justify-between text-xs font-semibold text-paper">
               {b.titulo}
@@ -131,6 +131,11 @@ export default function ResumenDia() {
           </div>
         ))}
       </div>
+      {bloques.some((b) => !b.items.length) && (
+        <p className="mt-2 text-[11px] text-muted">
+          Sin novedades en: {bloques.filter((b) => !b.items.length).map((b) => b.titulo.toLowerCase()).join(" · ")}.
+        </p>
+      )}
     </section>
   );
 }

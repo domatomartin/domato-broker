@@ -45,8 +45,9 @@ export default function DashboardPage() {
       if (meta?.name) {
         setUserName(meta.name.split(" ")[0]);
       } else if (data.session?.user?.email) {
-        const local = data.session.user.email.split("@")[0];
-        setUserName(local.charAt(0).toUpperCase() + local.slice(1));
+        const local = data.session.user.email.split("@")[0].split(/[._-]/).pop() ?? "";
+        const nombre = local.toLowerCase() === "martin" ? "Martín" : local;
+        setUserName(nombre.charAt(0).toUpperCase() + nombre.slice(1));
       }
     });
 
