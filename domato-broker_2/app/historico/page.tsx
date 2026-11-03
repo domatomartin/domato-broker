@@ -27,7 +27,7 @@ export default function HistoricoPage() {
       .order("fecha", { ascending: true })
       .then(({ data }) => {
         // Se descartan registros vacíos y los del cálculo viejo que sumaba pesos como dólares (2026-10-31 a 2026-11-02).
-        const lista = ((data as PatrimonioSnapshot[]) ?? []).filter((x) => x.valor_total > 0 && !(x.fecha >= "2026-10-29" && x.fecha <= "2026-11-02"));
+        const lista = ((data as PatrimonioSnapshot[]) ?? []).filter((x) => x.valor_total > 0);
         setSnapshots(lista);
       });
   }, []);
@@ -73,7 +73,7 @@ export default function HistoricoPage() {
         {snapshots.length > 0 ? (
           <PatrimonioChart
             data={snapshots.map((s) => ({
-              fecha: new Date(s.fecha).toLocaleDateString("es-UY", {
+              fecha: new Date(s.fecha + "T12:00:00").toLocaleDateString("es-UY", {
                 day: "2-digit",
                 month: "short",
               }),
@@ -99,7 +99,7 @@ export default function HistoricoPage() {
             <tbody>
               {[...snapshots].reverse().map((s) => (
                 <tr key={s.id ?? s.fecha} className="border-b border-ink-border/50">
-                  <td className="py-2">{new Date(s.fecha).toLocaleDateString("es-UY")}</td>
+                  <td className="py-2">{new Date(s.fecha + "T12:00:00").toLocaleDateString("es-UY")}</td>
                   <td className="py-2 text-right font-mono mono-num">
                     {formatMoney(s.valor_total)}
                   </td>

@@ -163,7 +163,7 @@ export default function DashboardPage() {
           {snapshotsCartera.length > 0 ? (
             <PatrimonioChart
               data={snapshotsCartera.map((s) => ({
-                fecha: new Date(s.fecha).toLocaleDateString("es-UY", {
+                fecha: new Date(s.fecha + "T12:00:00").toLocaleDateString("es-UY", {
                   day: "2-digit",
                   month: "short",
                 }),
